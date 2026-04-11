@@ -7,7 +7,6 @@ import { FileDown, FileSpreadsheet, Loader2 } from "lucide-react";
 interface ExportColumn {
   key: string;
   header: string;
-  format?: (value: unknown) => string;
 }
 
 interface ExportButtonsProps {
@@ -34,11 +33,7 @@ export function ExportButtons({
       const rows = data.map((row) =>
         columns
           .map((col) => {
-            const value = row[col.key];
-            const formatted = col.format
-              ? col.format(value)
-              : String(value ?? "");
-            // Escape quotes and wrap in quotes
+            const formatted = String(row[col.key] ?? "");
             return `"${formatted.replace(/"/g, '""')}"`;
           })
           .join(",")
@@ -95,10 +90,7 @@ export function ExportButtons({
       // Prepare table data
       const tableHeaders = columns.map((c) => c.header);
       const tableRows = data.map((row) =>
-        columns.map((col) => {
-          const value = row[col.key];
-          return col.format ? col.format(value) : String(value ?? "");
-        })
+        columns.map((col) => String(row[col.key] ?? "")),
       );
 
       // Add table
