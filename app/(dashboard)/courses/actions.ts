@@ -1,8 +1,30 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { courses, coursePrerequisites } from "@/lib/db/schema";
+import {
+  courses,
+  coursePrerequisites,
+  courseSubjects,
+} from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+
+interface SubjectInput {
+  subjectName: string;
+  maxMarks: string;
+}
+
+function parseSubjects(formData: FormData): SubjectInput[] {
+  const raw = formData.get("subjects");
+  if (!raw || typeof raw !== "string") return [];
+  try {
+    const parsed = JSON.parse(raw) as SubjectInput[];
+    return Array.isArray(parsed)
+      ? parsed.filter((s) => s?.subjectName?.trim())
+      : [];
+  } catch {
+    return [];
+  }
+}
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/guards";
 import { auditCreate, auditUpdate, auditDelete, getChangedFields } from "@/lib/utils/audit";
@@ -16,6 +38,8 @@ export async function createCourse(formData: FormData) {
   const passingMark = parseInt(formData.get("passingMark") as string) || 40;
   const description = (formData.get("description") as string) || null;
 
+  const subjects = parseSubjects(formData);
+
   try {
     const [newCourse] = await db
       .insert(courses)
@@ -28,11 +52,23 @@ export async function createCourse(formData: FormData) {
       })
       .returning({ courseId: courses.courseId });
 
+    if (subjects.length > 0) {
+      await db.insert(courseSubjects).values(
+        subjects.map((s, i) => ({
+          courseId: newCourse.courseId,
+          subjectName: s.subjectName.trim(),
+          maxMarks: s.maxMarks || "100",
+          sortOrder: i,
+        })),
+      );
+    }
+
     await auditCreate(user, "courses", String(newCourse.courseId), {
       courseCode,
       courseName,
       durationWeeks,
       passingMark,
+      subjectCount: subjects.length,
     });
 
     revalidatePath("/courses");
@@ -69,11 +105,27 @@ export async function updateCourse(courseId: number, formData: FormData) {
     updatedAt: new Date(),
   };
 
+  const subjects = parseSubjects(formData);
+
   try {
     await db
       .update(courses)
       .set(newData)
       .where(eq(courses.courseId, courseId));
+
+    await db
+      .delete(courseSubjects)
+      .where(eq(courseSubjects.courseId, courseId));
+    if (subjects.length > 0) {
+      await db.insert(courseSubjects).values(
+        subjects.map((s, i) => ({
+          courseId,
+          subjectName: s.subjectName.trim(),
+          maxMarks: s.maxMarks || "100",
+          sortOrder: i,
+        })),
+      );
+    }
 
     const changes = getChangedFields(existing, newData);
     await auditUpdate(user, "courses", String(courseId), changes.old, changes.new);
