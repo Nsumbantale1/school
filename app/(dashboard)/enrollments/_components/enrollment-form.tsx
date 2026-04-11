@@ -6,13 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/searchable-select";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import { createEnrollment } from "../actions";
 
@@ -85,42 +79,34 @@ export function EnrollmentForm({
 
       <div className="space-y-2">
         <Label htmlFor="studentArmyNumber">Student</Label>
-        <Select
+        <SearchableSelect
+          id="studentArmyNumber"
           name="studentArmyNumber"
           defaultValue={defaultStudentArmyNumber}
           required
-        >
-          <SelectTrigger id="studentArmyNumber">
-            <SelectValue placeholder="Select a student..." />
-          </SelectTrigger>
-          <SelectContent>
-            {students.map((s) => (
-              <SelectItem key={s.armyNumber} value={s.armyNumber}>
-                {s.rank} {s.fullName} ({s.armyNumber})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder="Search by name, rank, or army number..."
+          options={students.map((s) => ({
+            value: s.armyNumber,
+            label: `${s.rank} ${s.fullName} (${s.armyNumber})`,
+            searchText: `${s.rank} ${s.fullName} ${s.armyNumber}`,
+          }))}
+        />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="intakeId">Course Intake</Label>
-        <Select
+        <SearchableSelect
+          id="intakeId"
           name="intakeId"
           defaultValue={defaultIntakeId?.toString()}
           required
-        >
-          <SelectTrigger id="intakeId">
-            <SelectValue placeholder="Select an intake..." />
-          </SelectTrigger>
-          <SelectContent>
-            {intakes.map((i) => (
-              <SelectItem key={i.intakeId} value={i.intakeId.toString()}>
-                {i.courseCode} - {i.courseName} ({i.intakeNumber}, {i.year})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder="Search course or intake..."
+          options={intakes.map((i) => ({
+            value: i.intakeId.toString(),
+            label: `${i.courseCode} - ${i.courseName} (${i.intakeNumber}, ${i.year})`,
+            searchText: `${i.courseCode} ${i.courseName} ${i.intakeNumber} ${i.year}`,
+          }))}
+        />
         <p className="text-sm text-muted-foreground">
           Prerequisites will be checked automatically before enrollment.
         </p>

@@ -7,13 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/searchable-select";
 import { Card, CardContent } from "@/components/ui/card";
 import { createResult, updateResult } from "../actions";
 import { calculateGrade } from "@/lib/utils/grades";
@@ -24,11 +18,18 @@ interface Enrollment {
   fullName: string;
   rank: string;
   courseCode: string;
+  courseId: number;
   intakeNumber: string;
+}
+
+interface SubjectOption {
+  subjectName: string;
+  maxMarks: string;
 }
 
 interface ResultFormProps {
   enrollments: Enrollment[];
+  subjectsByCourse: Record<number, SubjectOption[]>;
   defaultEnrollmentId?: number;
   initialData?: {
     resultId: number;
@@ -42,11 +43,20 @@ interface ResultFormProps {
 
 export function ResultForm({
   enrollments,
+  subjectsByCourse,
   defaultEnrollmentId,
   initialData,
 }: ResultFormProps) {
   const router = useRouter();
   const [pending, setPending] = React.useState(false);
+  const [enrollmentId, setEnrollmentId] = React.useState<string>(
+    initialData?.enrollmentId?.toString() ??
+      defaultEnrollmentId?.toString() ??
+      "",
+  );
+  const [subjectName, setSubjectName] = React.useState<string>(
+    initialData?.subjectName ?? "",
+  );
   const [marks, setMarks] = React.useState(
     initialData?.marksObtained ? parseFloat(initialData.marksObtained) : 0
   );
@@ -54,6 +64,37 @@ export function ResultForm({
     initialData?.maxMarks ? parseFloat(initialData.maxMarks) : 100
   );
   const isEditing = !!initialData;
+
+  const selectedEnrollment = React.useMemo(
+    () =>
+      enrollments.find((e) => e.enrollmentId.toString() === enrollmentId),
+    [enrollments, enrollmentId],
+  );
+
+  const availableSubjects = React.useMemo(() => {
+    if (!selectedEnrollment) return [];
+    return subjectsByCourse[selectedEnrollment.courseId] ?? [];
+  }, [selectedEnrollment, subjectsByCourse]);
+
+  React.useEffect(() => {
+    if (isEditing) return;
+    if (availableSubjects.length === 0) {
+      setSubjectName("");
+      return;
+    }
+    if (!availableSubjects.some((s) => s.subjectName === subjectName)) {
+      setSubjectName("");
+    }
+  }, [availableSubjects, isEditing, subjectName]);
+
+  React.useEffect(() => {
+    if (isEditing) return;
+    const match = availableSubjects.find((s) => s.subjectName === subjectName);
+    if (match) {
+      const parsed = parseFloat(match.maxMarks);
+      if (!Number.isNaN(parsed)) setMaxMarks(parsed);
+    }
+  }, [subjectName, availableSubjects, isEditing]);
 
   // Calculate preview grade
   const previewGrade = calculateGrade(marks, maxMarks);
@@ -82,41 +123,62 @@ export function ResultForm({
     <form onSubmit={handleSubmit} className="max-w-xl space-y-4">
       <div className="space-y-2">
         <Label htmlFor="enrollmentId">Student Enrollment</Label>
-        <Select
+        <SearchableSelect
+          id="enrollmentId"
           name="enrollmentId"
-          defaultValue={
-            initialData?.enrollmentId?.toString() ??
-            defaultEnrollmentId?.toString()
-          }
+          value={enrollmentId}
+          onValueChange={setEnrollmentId}
           disabled={isEditing}
           required
-        >
-          <SelectTrigger id="enrollmentId">
-            <SelectValue placeholder="Select an enrollment..." />
-          </SelectTrigger>
-          <SelectContent>
-            {enrollments.map((e) => (
-              <SelectItem key={e.enrollmentId} value={e.enrollmentId.toString()}>
-                {e.rank} {e.fullName} - {e.courseCode} ({e.intakeNumber})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder="Search by student, army no, or course..."
+          options={enrollments.map((e) => ({
+            value: e.enrollmentId.toString(),
+            label: `${e.rank} ${e.fullName} - ${e.courseCode} (${e.intakeNumber})`,
+            searchText: `${e.rank} ${e.fullName} ${e.studentArmyNumber} ${e.courseCode} ${e.intakeNumber}`,
+          }))}
+        />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="subjectName">Subject Name</Label>
-        <Input
-          id="subjectName"
-          name="subjectName"
-          required
-          disabled={isEditing}
-          placeholder="e.g., Artillery Tactics"
-          defaultValue={initialData?.subjectName ?? ""}
-        />
-        <p className="text-sm text-muted-foreground">
-          Enter the subject or module name for this result.
-        </p>
+        <Label htmlFor="subjectName">Subject</Label>
+        {isEditing ? (
+          <Input
+            id="subjectName"
+            name="subjectName"
+            value={subjectName}
+            disabled
+          />
+        ) : availableSubjects.length > 0 ? (
+          <SearchableSelect
+            id="subjectName"
+            name="subjectName"
+            value={subjectName}
+            onValueChange={setSubjectName}
+            required
+            placeholder="Select a subject for this course..."
+            options={availableSubjects.map((s) => ({
+              value: s.subjectName,
+              label: `${s.subjectName} (max ${parseFloat(s.maxMarks)})`,
+              searchText: s.subjectName,
+            }))}
+          />
+        ) : (
+          <>
+            <Input
+              id="subjectName"
+              name="subjectName"
+              value={subjectName}
+              onChange={(e) => setSubjectName(e.target.value)}
+              required
+              placeholder="e.g., Artillery Tactics"
+            />
+            <p className="text-xs text-muted-foreground">
+              {selectedEnrollment
+                ? "This course has no subjects defined yet — enter one manually or add subjects in the course settings."
+                : "Select an enrollment first."}
+            </p>
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
