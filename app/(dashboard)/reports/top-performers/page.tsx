@@ -62,7 +62,6 @@ export default async function TopPerformersPage({ searchParams }: PageProps) {
     .orderBy(enrollments.position, desc(enrollments.averageMarks))
     .limit(limit);
 
-  // Export columns
   const exportColumns = [
     { key: "position", header: "Position" },
     { key: "armyNumber", header: "Army Number" },
@@ -72,13 +71,16 @@ export default async function TopPerformersPage({ searchParams }: PageProps) {
     { key: "courseCode", header: "Course Code" },
     { key: "courseName", header: "Course Name" },
     { key: "intakeNumber", header: "Intake" },
-    {
-      key: "averageMarks",
-      header: "Average (%)",
-      format: (v: unknown) => (v ? `${parseFloat(v as string).toFixed(1)}` : "N/A"),
-    },
+    { key: "averageMarks", header: "Average (%)" },
     { key: "grade", header: "Grade" },
   ];
+
+  const exportData = topPerformers.map((r) => ({
+    ...r,
+    averageMarks: r.averageMarks
+      ? parseFloat(r.averageMarks).toFixed(1)
+      : "N/A",
+  }));
 
   // Group by position for summary
   const firstPlace = topPerformers.filter((p) => p.position === 1).length;
@@ -144,11 +146,6 @@ export default async function TopPerformersPage({ searchParams }: PageProps) {
                 name="year"
                 defaultValue={selectedYear}
                 className="rounded border px-2 py-1 text-sm"
-                onChange={(e) => {
-                  const url = new URL(window.location.href);
-                  url.searchParams.set("year", e.target.value);
-                  window.location.href = url.toString();
-                }}
               >
                 {years.map((y) => (
                   <option key={y.year} value={y.year}>
@@ -156,9 +153,15 @@ export default async function TopPerformersPage({ searchParams }: PageProps) {
                   </option>
                 ))}
               </select>
+              <button
+                type="submit"
+                className="rounded border px-2 py-1 text-sm hover:bg-accent"
+              >
+                Apply
+              </button>
             </form>
             <ExportButtons
-              data={topPerformers}
+              data={exportData}
               columns={exportColumns}
               filename={`top-performers-${selectedYear}`}
               title={`Top Performers - ${selectedYear}`}

@@ -1,6 +1,12 @@
 import { db } from "@/lib/db";
-import { enrollments, students, courseIntakes, courses } from "@/lib/db/schema";
-import { eq, desc, or } from "drizzle-orm";
+import {
+  enrollments,
+  students,
+  courseIntakes,
+  courses,
+  courseSubjects,
+} from "@/lib/db/schema";
+import { eq, desc, or, asc } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
 import { ResultForm } from "../_components/result-form";
 import { requireAuth, canManageResults } from "@/lib/auth/guards";
@@ -51,6 +57,26 @@ export default async function NewResultPage({ searchParams }: PageProps) {
     );
   }
 
+  const subjectRows = await db
+    .select({
+      courseId: courseSubjects.courseId,
+      subjectName: courseSubjects.subjectName,
+      maxMarks: courseSubjects.maxMarks,
+    })
+    .from(courseSubjects)
+    .orderBy(asc(courseSubjects.sortOrder));
+
+  const subjectsByCourse: Record<
+    number,
+    { subjectName: string; maxMarks: string }[]
+  > = {};
+  for (const r of subjectRows) {
+    (subjectsByCourse[r.courseId] ??= []).push({
+      subjectName: r.subjectName,
+      maxMarks: String(r.maxMarks),
+    });
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -59,6 +85,7 @@ export default async function NewResultPage({ searchParams }: PageProps) {
       />
       <ResultForm
         enrollments={activeEnrollments}
+        subjectsByCourse={subjectsByCourse}
         defaultEnrollmentId={
           params.enrollmentId ? parseInt(params.enrollmentId) : undefined
         }

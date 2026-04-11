@@ -91,7 +91,6 @@ export default async function FailuresPage({ searchParams }: PageProps) {
     ? atRisk.filter((r) => r.year === selectedYear)
     : atRisk;
 
-  // Export columns
   const exportColumns = [
     { key: "armyNumber", header: "Army Number" },
     { key: "rank", header: "Rank" },
@@ -100,14 +99,20 @@ export default async function FailuresPage({ searchParams }: PageProps) {
     { key: "courseCode", header: "Course" },
     { key: "intakeNumber", header: "Intake" },
     { key: "year", header: "Year" },
-    {
-      key: "averageMarks",
-      header: "Average (%)",
-      format: (v: unknown) => (v ? `${parseFloat(v as string).toFixed(1)}` : "N/A"),
-    },
+    { key: "averageMarks", header: "Average (%)" },
     { key: "grade", header: "Grade" },
     { key: "status", header: "Status" },
   ];
+
+  const formatAvg = <T extends { averageMarks: string | null }>(rows: T[]) =>
+    rows.map((r) => ({
+      ...r,
+      averageMarks: r.averageMarks
+        ? parseFloat(r.averageMarks).toFixed(1)
+        : "N/A",
+    }));
+  const failuresExport = formatAvg(filteredFailures);
+  const atRiskExport = formatAvg(filteredAtRisk);
 
   return (
     <div className="space-y-6">
@@ -158,11 +163,6 @@ export default async function FailuresPage({ searchParams }: PageProps) {
               name="year"
               defaultValue={selectedYear}
               className="rounded border px-3 py-1.5 text-sm"
-              onChange={(e) => {
-                const url = new URL(window.location.href);
-                url.searchParams.set("year", e.target.value);
-                window.location.href = url.toString();
-              }}
             >
               {years.map((y) => (
                 <option key={y.year} value={y.year}>
@@ -170,6 +170,12 @@ export default async function FailuresPage({ searchParams }: PageProps) {
                 </option>
               ))}
             </select>
+            <button
+              type="submit"
+              className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
+            >
+              Apply
+            </button>
           </form>
         </CardContent>
       </Card>
@@ -186,7 +192,7 @@ export default async function FailuresPage({ searchParams }: PageProps) {
             </p>
           </div>
           <ExportButtons
-            data={filteredFailures}
+            data={failuresExport}
             columns={exportColumns}
             filename={`failures-${selectedYear}`}
             title={`Failed Students - ${selectedYear}`}
@@ -263,7 +269,7 @@ export default async function FailuresPage({ searchParams }: PageProps) {
             </p>
           </div>
           <ExportButtons
-            data={filteredAtRisk}
+            data={atRiskExport}
             columns={exportColumns}
             filename={`at-risk-${selectedYear}`}
             title={`At-Risk Students - ${selectedYear}`}

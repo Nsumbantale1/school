@@ -27,8 +27,15 @@ interface PageProps {
   searchParams: Promise<{ courseId?: string; intakeId?: string; year?: string }>;
 }
 
+const ALL = "__all__";
+
 export default async function ByCourseReportPage({ searchParams }: PageProps) {
-  const params = await searchParams;
+  const raw = await searchParams;
+  const params = {
+    courseId: raw.courseId && raw.courseId !== ALL ? raw.courseId : undefined,
+    intakeId: raw.intakeId && raw.intakeId !== ALL ? raw.intakeId : undefined,
+    year: raw.year && raw.year !== ALL ? raw.year : undefined,
+  };
 
   // Get all courses for filter
   const allCourses = await db
@@ -124,17 +131,23 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
       .orderBy(enrollments.position);
   }
 
-  // Export columns
   const exportColumns = [
     { key: "position", header: "Position" },
     { key: "armyNumber", header: "Army Number" },
     { key: "rank", header: "Rank" },
     { key: "fullName", header: "Full Name" },
     { key: "unit", header: "Unit" },
-    { key: "averageMarks", header: "Average (%)", format: (v: unknown) => v ? `${parseFloat(v as string).toFixed(1)}` : "N/A" },
+    { key: "averageMarks", header: "Average (%)" },
     { key: "grade", header: "Grade" },
     { key: "status", header: "Status" },
   ];
+
+  const exportData = reportData.map((r) => ({
+    ...r,
+    averageMarks: r.averageMarks
+      ? parseFloat(r.averageMarks).toFixed(1)
+      : "N/A",
+  }));
 
   return (
     <div className="space-y-6">
@@ -152,12 +165,12 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
           <form className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <label className="text-sm font-medium">Course</label>
-              <Select name="courseId" defaultValue={params.courseId ?? ""}>
+              <Select name="courseId" defaultValue={params.courseId ?? ALL}>
                 <SelectTrigger>
                   <SelectValue placeholder="All courses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All courses</SelectItem>
+                  <SelectItem value={ALL}>All courses</SelectItem>
                   {allCourses.map((c) => (
                     <SelectItem key={c.courseId} value={c.courseId.toString()}>
                       {c.courseCode} - {c.courseName}
@@ -169,12 +182,12 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Year</label>
-              <Select name="year" defaultValue={params.year ?? ""}>
+              <Select name="year" defaultValue={params.year ?? ALL}>
                 <SelectTrigger>
                   <SelectValue placeholder="All years" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All years</SelectItem>
+                  <SelectItem value={ALL}>All years</SelectItem>
                   {years.map((y) => (
                     <SelectItem key={y.year} value={y.year.toString()}>
                       {y.year}
@@ -186,12 +199,12 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Intake</label>
-              <Select name="intakeId" defaultValue={params.intakeId ?? ""}>
+              <Select name="intakeId" defaultValue={params.intakeId ?? ALL}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select intake" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Select intake</SelectItem>
+                  <SelectItem value={ALL}>Select intake</SelectItem>
                   {intakes.map((i) => (
                     <SelectItem key={i.intakeId} value={i.intakeId.toString()}>
                       {i.intakeNumber} ({i.year})
@@ -200,10 +213,21 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
                 </SelectContent>
               </Select>
             </div>
+            <div className="md:col-span-3 flex gap-2">
+              <button
+                type="submit"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Apply Filters
+              </button>
+              <Link
+                href="/reports/by-course"
+                className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
+              >
+                Reset
+              </Link>
+            </div>
           </form>
-          <p className="text-sm text-muted-foreground mt-4">
-            Select filters and press Enter or click outside to apply.
-          </p>
         </CardContent>
       </Card>
 
@@ -220,7 +244,7 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
               </p>
             </div>
             <ExportButtons
-              data={reportData}
+              data={exportData}
               columns={exportColumns}
               filename={`report-${selectedIntake.courseCode}-${selectedIntake.intakeNumber}`}
               title={`${selectedIntake.courseName} - ${selectedIntake.intakeNumber} (${selectedIntake.year})`}
