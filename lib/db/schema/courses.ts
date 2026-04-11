@@ -11,6 +11,7 @@ import {
 import { relations } from "drizzle-orm";
 import { courseIntakes } from "./course-intakes";
 import { coursePrerequisites } from "./course-prerequisites";
+import { courseSubjects } from "./course-subjects";
 
 export const courses = pgTable(
   "courses",
@@ -38,6 +39,7 @@ export const courses = pgTable(
 
 export const coursesRelations = relations(courses, ({ many }) => ({
   intakes: many(courseIntakes),
+  subjects: many(courseSubjects),
   prerequisites: many(coursePrerequisites, { relationName: "course" }),
   requiredFor: many(coursePrerequisites, { relationName: "prerequisite" }),
 }));
