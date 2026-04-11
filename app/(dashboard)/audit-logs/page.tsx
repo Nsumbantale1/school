@@ -28,9 +28,16 @@ interface PageProps {
   }>;
 }
 
+const ALL = "__all__";
+
 export default async function AuditLogsPage({ searchParams }: PageProps) {
   await requireRole(["admin"]);
-  const params = await searchParams;
+  const raw = await searchParams;
+  const params = {
+    ...raw,
+    table: raw.table && raw.table !== ALL ? raw.table : undefined,
+    action: raw.action && raw.action !== ALL ? raw.action : undefined,
+  };
 
   const page = params.page ? parseInt(params.page) : 1;
   const pageSize = 50;
@@ -99,12 +106,12 @@ export default async function AuditLogsPage({ searchParams }: PageProps) {
           <form className="grid gap-4 md:grid-cols-5">
             <div className="space-y-2">
               <label className="text-sm font-medium">Table</label>
-              <Select name="table" defaultValue={params.table ?? ""}>
+              <Select name="table" defaultValue={params.table ?? ALL}>
                 <SelectTrigger>
                   <SelectValue placeholder="All tables" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All tables</SelectItem>
+                  <SelectItem value={ALL}>All tables</SelectItem>
                   {tables.map((t) => (
                     <SelectItem key={t.tableName} value={t.tableName}>
                       {t.tableName}
@@ -116,12 +123,12 @@ export default async function AuditLogsPage({ searchParams }: PageProps) {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Action</label>
-              <Select name="action" defaultValue={params.action ?? ""}>
+              <Select name="action" defaultValue={params.action ?? ALL}>
                 <SelectTrigger>
                   <SelectValue placeholder="All actions" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All actions</SelectItem>
+                  <SelectItem value={ALL}>All actions</SelectItem>
                   <SelectItem value="create">Create</SelectItem>
                   <SelectItem value="update">Update</SelectItem>
                   <SelectItem value="delete">Delete</SelectItem>
