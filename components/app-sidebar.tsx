@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -9,7 +10,6 @@ import {
   Calendar,
   ClipboardList,
   Award,
-  Shield,
   LogOut,
   FileBarChart,
   TrendingUp,
@@ -31,7 +31,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { GlobalSearch } from "@/components/global-search";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { logoutAction } from "@/app/(dashboard)/actions";
 
 interface NavItem {
@@ -92,17 +92,17 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const isAdmin = user.role === "admin";
 
   return (
-    <Sidebar>
-      <SidebarHeader className="border-b px-4 py-3">
+    <Sidebar variant="inset">
+      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border px-4">
         <div className="flex items-center gap-2">
-          <Shield className="h-6 w-6" />
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold">School of Field Artillery</span>
-            <span className="text-xs text-muted-foreground">Management System</span>
-          </div>
-        </div>
-        <div className="mt-3">
-          <GlobalSearch />
+          <Image
+            src="/school-of-artillery.png"
+            alt="School of Artillery crest"
+            width={40}
+            height={31}
+            className="h-8 w-auto shrink-0 rounded-sm bg-white p-0.5"
+          />
+          <span className="text-sm font-semibold">School of Field Artillery</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -119,7 +119,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
             <SidebarGroup key={group.label}>
               <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
               <SidebarGroupContent>
-                <SidebarMenu>
+                <SidebarMenu className="gap-1.5">
                   {visibleItems.map((item) => {
                     const isActive =
                       pathname === item.href ||
@@ -142,19 +142,22 @@ export function AppSidebar({ user }: AppSidebarProps) {
           );
         })}
       </SidebarContent>
-      <SidebarFooter className="border-t px-4 py-3">
+      <SidebarFooter className="border-t border-sidebar-border px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium">{user.name}</p>
-            <p className="text-xs text-muted-foreground capitalize">
+            <p className="text-xs text-sidebar-foreground/70 capitalize">
               {user.role.replace(/_/g, " ")}
             </p>
           </div>
-          <form action={logoutAction}>
-            <Button variant="ghost" size="icon" type="submit">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </form>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <form action={logoutAction}>
+              <Button variant="ghost" size="icon" type="submit">
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
         </div>
       </SidebarFooter>
     </Sidebar>
