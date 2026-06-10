@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import { Separator } from "@/components/ui/separator";
+import { GlobalSearch } from "@/components/global-search";
 import { getSessionUser } from "@/lib/auth";
 
 export default async function DashboardLayout({
@@ -15,11 +15,13 @@ export default async function DashboardLayout({
   return (
     <SidebarProvider>
       <AppSidebar user={{ name: user.name, role: user.role }} />
-      <SidebarInset>
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <span className="text-sm font-medium">School of Field Artillery</span>
+      <SidebarInset className="h-svh overflow-hidden md:h-[calc(100svh-1rem)]">
+        <header className="flex h-14 shrink-0 items-center gap-3 rounded-t-xl border-b bg-background px-4">
+          <SidebarTrigger className="-ml-1 size-8" />
+          <span className="text-sm font-semibold">School of Field Artillery</span>
+          <div className="ml-auto">
+            <GlobalSearch />
+          </div>
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
       </SidebarInset>
