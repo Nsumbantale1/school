@@ -250,12 +250,15 @@ export default async function IntakeDetailPage({ params }: PageProps) {
                       </td>
                       <td className="py-3 px-2">
                         <Link
-                          href={`/students/${enrollment.armyNumber}`}
+                          href={`/enrollments/${enrollment.enrollmentId}`}
                           className="hover:underline"
                         >
                           <div>
                             <p className="font-medium">
                               {enrollment.rank} {enrollment.fullName}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              View subject marks
                             </p>
                           </div>
                         </Link>

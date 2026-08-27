@@ -22,6 +22,7 @@ import { PositionBadge } from "@/components/position-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { ExportButtons } from "@/components/export-buttons";
 import Link from "next/link";
+import { studentPath } from "@/lib/utils";
 
 interface PageProps {
   searchParams: Promise<{ courseId?: string; intakeId?: string; year?: string }>;
@@ -280,7 +281,7 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
                         </td>
                         <td className="py-3 px-2">
                           <Link
-                            href={`/students/${row.armyNumber}`}
+                            href={studentPath(row.armyNumber)}
                             className="hover:underline"
                           >
                             {row.rank} {row.fullName}

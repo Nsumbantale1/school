@@ -91,7 +91,7 @@ export async function updateStudent(armyNumber: string, formData: FormData) {
     await auditUpdate(user, "students", armyNumber, changes.old, changes.new);
 
     revalidatePath("/students");
-    revalidatePath(`/students/${armyNumber}`);
+    revalidatePath(`/students/${encodeURIComponent(armyNumber)}`);
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };

@@ -15,6 +15,7 @@ import { PositionBadge } from "@/components/position-badge";
 import { ExportButtons } from "@/components/export-buttons";
 import { Trophy, Medal, Award } from "lucide-react";
 import Link from "next/link";
+import { studentPath } from "@/lib/utils";
 
 interface PageProps {
   searchParams: Promise<{ year?: string; limit?: string }>;
@@ -196,7 +197,7 @@ export default async function TopPerformersPage({ searchParams }: PageProps) {
                       </td>
                       <td className="py-3 px-2">
                         <Link
-                          href={`/students/${row.armyNumber}`}
+                          href={studentPath(row.armyNumber)}
                           className="hover:underline font-medium"
                         >
                           {row.rank} {row.fullName}

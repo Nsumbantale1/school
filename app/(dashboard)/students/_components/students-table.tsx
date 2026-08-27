@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
+import { studentPath } from "@/lib/utils";
 
 interface StudentRow {
   armyNumber: string;
@@ -246,7 +247,7 @@ export function StudentsTable({
         searchKey="fullName"
         searchPlaceholder="Search by name..."
         getRowKey={(row) => row.armyNumber}
-        onRowClick={(row) => router.push(`/students/${row.armyNumber}`)}
+        onRowClick={(row) => router.push(studentPath(row.armyNumber))}
       />
     </div>
   );

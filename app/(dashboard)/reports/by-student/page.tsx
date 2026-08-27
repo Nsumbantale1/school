@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { studentPath } from "@/lib/utils";
 
 interface PageProps {
   searchParams: Promise<{ q?: string }>;
@@ -95,7 +96,7 @@ export default async function ByStudentReportPage({ searchParams }: PageProps) {
                 {searchResults.map((student) => (
                   <Link
                     key={student.armyNumber}
-                    href={`/students/${student.armyNumber}`}
+                    href={studentPath(student.armyNumber)}
                     className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted transition-colors"
                   >
                     <div>

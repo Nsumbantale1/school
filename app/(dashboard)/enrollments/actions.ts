@@ -57,7 +57,7 @@ export async function createEnrollment(formData: FormData) {
 
     revalidatePath("/enrollments");
     revalidatePath(`/intakes/${intakeId}`);
-    revalidatePath(`/students/${studentArmyNumber}`);
+    revalidatePath(`/students/${encodeURIComponent(studentArmyNumber)}`);
     return { success: true, enrollmentId: newEnrollment.enrollmentId };
   } catch (error) {
     const message = (error as Error).message;
@@ -138,7 +138,7 @@ export async function deleteEnrollment(enrollmentId: number) {
 
     revalidatePath("/enrollments");
     revalidatePath(`/intakes/${existing.intakeId}`);
-    revalidatePath(`/students/${existing.studentArmyNumber}`);
+    revalidatePath(`/students/${encodeURIComponent(existing.studentArmyNumber)}`);
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };

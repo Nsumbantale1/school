@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { students, courses, courseIntakes } from "@/lib/db/schema";
-import { ilike, or, eq } from "drizzle-orm";
+import { ilike, or, eq, and, sql } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
+import { studentPath } from "@/lib/utils";
 
 interface SearchResult {
   type: "student" | "course" | "intake";
@@ -13,24 +14,23 @@ interface SearchResult {
 }
 
 export async function GET(request: NextRequest) {
-  // Verify user is authenticated
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const searchParams = request.nextUrl.searchParams;
-  const query = searchParams.get("q")?.trim();
+  const query = request.nextUrl.searchParams.get("q")?.trim();
 
   if (!query || query.length < 2) {
     return NextResponse.json({ results: [] });
   }
 
   const searchPattern = `%${query}%`;
+  const prefixPattern = `${query}%`;
   const results: SearchResult[] = [];
 
   try {
-    // Search students
+    // Name / army number only — searching by rank floods results
     const matchingStudents = await db
       .select({
         armyNumber: students.armyNumber,
@@ -40,25 +40,40 @@ export async function GET(request: NextRequest) {
       })
       .from(students)
       .where(
-        or(
-          ilike(students.armyNumber, searchPattern),
-          ilike(students.fullName, searchPattern),
-          ilike(students.rank, searchPattern)
+        and(
+          eq(students.isActive, true),
+          or(
+            ilike(students.armyNumber, searchPattern),
+            ilike(students.fullName, searchPattern)
+          )
         )
+      )
+      .orderBy(
+        sql`case
+          when ${students.fullName} ilike ${prefixPattern} then 0
+          when ${students.armyNumber} ilike ${prefixPattern} then 1
+          else 2
+        end`,
+        students.fullName
       )
       .limit(5);
 
     for (const student of matchingStudents) {
+      const details = [
+        student.rank,
+        student.armyNumber,
+        student.unit || null,
+      ].filter(Boolean);
+
       results.push({
         type: "student",
         id: student.armyNumber,
-        title: `${student.rank} ${student.fullName}`,
-        subtitle: `${student.armyNumber}${student.unit ? ` - ${student.unit}` : ""}`,
-        url: `/students/${student.armyNumber}`,
+        title: student.fullName,
+        subtitle: details.join(" · "),
+        url: studentPath(student.armyNumber),
       });
     }
 
-    // Search courses
     const matchingCourses = await db
       .select({
         courseId: courses.courseId,
@@ -68,24 +83,26 @@ export async function GET(request: NextRequest) {
       })
       .from(courses)
       .where(
-        or(
-          ilike(courses.courseCode, searchPattern),
-          ilike(courses.courseName, searchPattern)
+        and(
+          eq(courses.isActive, true),
+          or(
+            ilike(courses.courseCode, searchPattern),
+            ilike(courses.courseName, searchPattern)
+          )
         )
       )
-      .limit(5);
+      .limit(3);
 
     for (const course of matchingCourses) {
       results.push({
         type: "course",
         id: String(course.courseId),
         title: course.courseName,
-        subtitle: `${course.courseCode} - ${course.durationWeeks} weeks`,
+        subtitle: `${course.courseCode} · ${course.durationWeeks} weeks`,
         url: `/courses/${course.courseId}`,
       });
     }
 
-    // Search intakes
     const matchingIntakes = await db
       .select({
         intakeId: courseIntakes.intakeId,
@@ -97,20 +114,22 @@ export async function GET(request: NextRequest) {
       .from(courseIntakes)
       .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
       .where(
-        or(
-          ilike(courseIntakes.intakeNumber, searchPattern),
-          ilike(courses.courseCode, searchPattern),
-          ilike(courses.courseName, searchPattern)
+        and(
+          eq(courseIntakes.isActive, true),
+          or(
+            ilike(courseIntakes.intakeNumber, searchPattern),
+            ilike(courses.courseCode, searchPattern)
+          )
         )
       )
-      .limit(5);
+      .limit(3);
 
     for (const intake of matchingIntakes) {
       results.push({
         type: "intake",
         id: String(intake.intakeId),
-        title: `${intake.courseName} - ${intake.intakeNumber}`,
-        subtitle: `${intake.courseCode} (${intake.year})`,
+        title: intake.intakeNumber,
+        subtitle: `${intake.courseCode} · ${intake.courseName} (${intake.year})`,
         url: `/intakes/${intake.intakeId}`,
       });
     }

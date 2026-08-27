@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth/guards";
 import { FileText, Download, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
+import { studentPath } from "@/lib/utils";
 
 export default async function DocumentsPage() {
   await requireRole(["admin"]);
@@ -124,7 +125,7 @@ export default async function DocumentsPage() {
                       <td className="py-3 px-2">
                         {doc.studentArmyNumber ? (
                           <Link
-                            href={`/students/${doc.studentArmyNumber}`}
+                            href={studentPath(doc.studentArmyNumber)}
                             className="hover:underline"
                           >
                             {doc.studentName || doc.studentArmyNumber}

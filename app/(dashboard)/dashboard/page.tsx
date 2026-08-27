@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { GradeBadge } from "@/components/grade-badge";
 import { getSessionUser } from "@/lib/auth";
+import { studentPath } from "@/lib/utils";
 
 export default async function DashboardPage() {
   const user = await getSessionUser();
@@ -158,7 +159,7 @@ export default async function DashboardPage() {
                 {recentEnrollments.map((e) => (
                   <Link
                     key={e.enrollmentId}
-                    href={`/students/${e.studentArmyNumber}`}
+                    href={studentPath(e.studentArmyNumber)}
                     className="flex items-center justify-between rounded-md border p-3 text-sm hover:bg-muted transition-colors"
                   >
                     <div>
@@ -198,7 +199,7 @@ export default async function DashboardPage() {
                 {topPerformers.map((p) => (
                   <Link
                     key={p.enrollmentId}
-                    href={`/students/${p.studentArmyNumber}`}
+                    href={studentPath(p.studentArmyNumber)}
                     className="flex items-center justify-between rounded-md border p-3 text-sm hover:bg-muted transition-colors"
                   >
                     <div>

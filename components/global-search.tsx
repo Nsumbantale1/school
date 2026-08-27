@@ -138,17 +138,6 @@ export function GlobalSearch() {
     }
   };
 
-  const getTypeLabel = (type: SearchResult["type"]) => {
-    switch (type) {
-      case "student":
-        return "Student";
-      case "course":
-        return "Course";
-      case "intake":
-        return "Intake";
-    }
-  };
-
   return (
     <>
       {/* Trigger button */}
@@ -174,7 +163,7 @@ export function GlobalSearch() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Search students, courses, intakes..."
+              placeholder="Search by name or army number..."
               className="border-0 focus-visible:ring-0 px-3"
             />
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -195,7 +184,7 @@ export function GlobalSearch() {
                     key={`${result.type}-${result.id}`}
                     onClick={() => navigateTo(result.url)}
                     className={cn(
-                      "w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-muted transition-colors",
+                      "w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted transition-colors",
                       index === selectedIndex && "bg-muted"
                     )}
                   >
@@ -210,12 +199,7 @@ export function GlobalSearch() {
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-muted-foreground">
-                        {getTypeLabel(result.type)}
-                      </span>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
                   </button>
                 ))}
               </div>
@@ -223,10 +207,7 @@ export function GlobalSearch() {
 
             {!query && (
               <div className="p-6 text-center text-muted-foreground">
-                <p>Start typing to search</p>
-                <p className="text-xs mt-2">
-                  Search across students, courses, and intakes
-                </p>
+                <p>Type a student name or army number</p>
               </div>
             )}
           </div>

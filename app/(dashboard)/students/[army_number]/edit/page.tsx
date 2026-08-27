@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
 import { StudentForm } from "../../_components/student-form";
 import { requireRole } from "@/lib/auth/guards";
+import { decodeArmyNumber } from "@/lib/utils";
 
 interface PageProps {
   params: Promise<{ army_number: string }>;
@@ -12,7 +13,8 @@ interface PageProps {
 
 export default async function EditStudentPage({ params }: PageProps) {
   await requireRole(["admin"]);
-  const { army_number } = await params;
+  const { army_number: rawArmyNumber } = await params;
+  const army_number = decodeArmyNumber(rawArmyNumber);
 
   const [student] = await db
     .select()

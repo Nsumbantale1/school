@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { ArrowLeft, Plus } from "lucide-react";
 import { PrintButton } from "@/components/print-button";
+import { studentPath } from "@/lib/utils";
 
 export default async function EnrollmentDetailPage({
   params,
@@ -105,7 +106,7 @@ export default async function EnrollmentDetailPage({
                 <dt className="font-medium text-muted-foreground">Student</dt>
                 <dd>
                   <Link
-                    href={`/students/${enrollment.studentArmyNumber}`}
+                    href={studentPath(enrollment.studentArmyNumber)}
                     className="hover:underline"
                   >
                     {enrollment.rank} {enrollment.fullName}

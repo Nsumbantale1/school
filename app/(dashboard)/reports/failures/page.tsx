@@ -15,6 +15,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { ExportButtons } from "@/components/export-buttons";
 import { AlertTriangle, XCircle } from "lucide-react";
 import Link from "next/link";
+import { studentPath } from "@/lib/utils";
 
 interface PageProps {
   searchParams: Promise<{ year?: string }>;
@@ -223,7 +224,7 @@ export default async function FailuresPage({ searchParams }: PageProps) {
                     <tr key={row.enrollmentId} className="border-b">
                       <td className="py-3 px-2">
                         <Link
-                          href={`/students/${row.armyNumber}`}
+                          href={studentPath(row.armyNumber)}
                           className="hover:underline font-medium"
                         >
                           {row.rank} {row.fullName}
@@ -300,7 +301,7 @@ export default async function FailuresPage({ searchParams }: PageProps) {
                     <tr key={row.enrollmentId} className="border-b">
                       <td className="py-3 px-2">
                         <Link
-                          href={`/students/${row.armyNumber}`}
+                          href={studentPath(row.armyNumber)}
                           className="hover:underline font-medium"
                         >
                           {row.rank} {row.fullName}
