@@ -15,6 +15,8 @@ export const enrollmentStatusEnum = pgEnum("enrollment_status", [
   "in_progress",
   "completed",
   "failed",
+  "incomplete",
+  "indiscipline",
   "withdrawn",
 ]);
 
@@ -34,4 +36,35 @@ export const auditActionEnum = pgEnum("audit_action", [
   "create",
   "update",
   "delete",
+]);
+
+// School officials on certificates (Chief Instructor, Commandant, etc.)
+export const officialRoleEnum = pgEnum("official_role", [
+  "chief_instructor",
+  "commandant",
+]);
+
+export const noticeCategoryEnum = pgEnum("notice_category", [
+  "general",
+  "schedule",
+  "safety",
+  "exam",
+  "admin",
+]);
+
+export const noticePriorityEnum = pgEnum("notice_priority", [
+  "normal",
+  "important",
+  "urgent",
+]);
+
+export const exerciseTypeEnum = pgEnum("exercise_type", [
+  "theory",
+  "practical",
+  "firing",
+  "pt",
+  "field",
+  "assessment",
+  "drill",
+  "other",
 ]);

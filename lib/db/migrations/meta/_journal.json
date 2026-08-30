@@ -8,6 +8,48 @@
       "when": 1775585728848,
       "tag": "0000_shiny_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775585728849,
+      "tag": "0001_rank_at_enrollment",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787335000000,
+      "tag": "0002_rank_at_enrollment_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787336000000,
+      "tag": "0003_indiscipline_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787337000000,
+      "tag": "0004_certificates_and_signatures",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787338000000,
+      "tag": "0005_course_notices_exercises",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787339000000,
+      "tag": "0006_subject_notices",
+      "breakpoints": true
     }
   ]
 }

@@ -25,11 +25,17 @@ export const enrollments = pgTable(
     intakeId: integer("intake_id")
       .notNull()
       .references(() => courseIntakes.intakeId, { onDelete: "cascade" }),
+    /** Rank held when enrolled in this course (historical snapshot). */
+    rankAtEnrollment: varchar("rank_at_enrollment", { length: 30 }).notNull(),
+    /** Unit at time of enrollment (historical snapshot). */
+    unitAtEnrollment: varchar("unit_at_enrollment", { length: 100 }),
     status: enrollmentStatusEnum("status").notNull().default("enrolled"),
     totalMarks: numeric("total_marks", { precision: 8, scale: 2 }),
     averageMarks: numeric("average_marks", { precision: 6, scale: 2 }),
     grade: gradeEnum("grade"),
     position: smallint("position"),
+    /** When training ceased (incomplete / indiscipline mid-course). */
+    ceasedAt: timestamp("ceased_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { students } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
+import { BackButton } from "@/components/back-button";
 import { StudentForm } from "../../_components/student-form";
 import { requireRole } from "@/lib/auth/guards";
 import { decodeArmyNumber } from "@/lib/utils";
@@ -31,7 +32,9 @@ export default async function EditStudentPage({ params }: PageProps) {
       <PageHeader
         title="Edit Student"
         description={`Editing ${student.rank} ${student.fullName}`}
-      />
+      >
+        <BackButton fallbackHref={`/students/${encodeURIComponent(army_number)}`} />
+      </PageHeader>
       <StudentForm
         initialData={{
           armyNumber: student.armyNumber,

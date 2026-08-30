@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { GlobalSearch } from "@/components/global-search";
+import { BackupFridayReminder } from "@/components/backup-friday-reminder";
 import { getSessionUser } from "@/lib/auth";
+import { getLastBackupDate } from "@/lib/utils/backup-tracker";
 
 export default async function DashboardLayout({
   children,
@@ -11,6 +13,9 @@ export default async function DashboardLayout({
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+
+  const lastBackupAt =
+    user.role === "admin" ? await getLastBackupDate() : null;
 
   return (
     <SidebarProvider>
@@ -23,7 +28,14 @@ export default async function DashboardLayout({
             <GlobalSearch />
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-4 md:p-6">
+          {user.role === "admin" && (
+            <BackupFridayReminder
+              lastBackupAt={lastBackupAt?.toISOString() ?? null}
+            />
+          )}
+          {children}
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );

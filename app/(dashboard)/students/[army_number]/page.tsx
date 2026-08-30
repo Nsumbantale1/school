@@ -26,10 +26,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Pencil, User, Phone, Mail, Building, Calendar } from "lucide-react";
+import { Pencil, User, Phone, Mail, Building, Calendar, FileText } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { canManageStudents } from "@/lib/auth/guards";
 import { decodeArmyNumber, studentPath } from "@/lib/utils";
+import { BackButton } from "@/components/back-button";
 
 interface PageProps {
   params: Promise<{ army_number: string }>;
@@ -54,6 +55,8 @@ export default async function StudentDetailPage({ params }: PageProps) {
     .select({
       enrollmentId: enrollments.enrollmentId,
       status: enrollments.status,
+      rankAtEnrollment: enrollments.rankAtEnrollment,
+      unitAtEnrollment: enrollments.unitAtEnrollment,
       totalMarks: enrollments.totalMarks,
       averageMarks: enrollments.averageMarks,
       grade: enrollments.grade,
@@ -99,8 +102,14 @@ export default async function StudentDetailPage({ params }: PageProps) {
     <div className="space-y-6">
       <PageHeader
         title={`${student.rank} ${student.fullName}`}
-        description={`Army Number: ${student.armyNumber}`}
+        description={`Army Number: ${student.armyNumber} · Current rank`}
       >
+        <Button variant="default" asChild>
+          <Link href={studentPath(army_number, "/service-record")}>
+            <FileText className="mr-2 h-4 w-4" />
+            Training Record
+          </Link>
+        </Button>
         {user && canManageStudents(user.role) && (
           <Button asChild>
             <Link href={studentPath(army_number, "/edit")}>
@@ -109,6 +118,7 @@ export default async function StudentDetailPage({ params }: PageProps) {
             </Link>
           </Button>
         )}
+        <BackButton fallbackHref="/students" />
       </PageHeader>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -186,6 +196,10 @@ export default async function StudentDetailPage({ params }: PageProps) {
               </Badge>
             </div>
             <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Current Rank</span>
+              <span className="font-medium">{student.rank}</span>
+            </div>
+            <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Total Courses</span>
               <span className="font-medium">{studentEnrollments.length}</span>
             </div>
@@ -218,6 +232,7 @@ export default async function StudentDetailPage({ params }: PageProps) {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-3 px-2 font-medium">Course</th>
+                    <th className="text-left py-3 px-2 font-medium">Rank then</th>
                     <th className="text-left py-3 px-2 font-medium">Intake</th>
                     <th className="text-left py-3 px-2 font-medium">Year</th>
                     <th className="text-left py-3 px-2 font-medium">Status</th>
@@ -239,6 +254,14 @@ export default async function StudentDetailPage({ params }: PageProps) {
                             {enrollment.courseCode}
                           </p>
                         </Link>
+                      </td>
+                      <td className="py-3 px-2">
+                        <span className="font-medium">{enrollment.rankAtEnrollment}</span>
+                        {enrollment.rankAtEnrollment !== student.rank && (
+                          <p className="text-xs text-muted-foreground">
+                            now {student.rank}
+                          </p>
+                        )}
                       </td>
                       <td className="py-3 px-2">{enrollment.intakeNumber}</td>
                       <td className="py-3 px-2">{enrollment.year}</td>
@@ -277,7 +300,10 @@ export default async function StudentDetailPage({ params }: PageProps) {
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
                   {enrollment.courseName} · {enrollment.intakeNumber} (
-                  {enrollment.year})
+                  {enrollment.year}) · Rank: {enrollment.rankAtEnrollment}
+                  {enrollment.unitAtEnrollment
+                    ? ` · ${enrollment.unitAtEnrollment}`
+                    : ""}
                 </p>
               </div>
               <Button variant="outline" size="sm" asChild>

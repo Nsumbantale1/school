@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { courses, courseSubjects } from "@/lib/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
+import { BackButton } from "@/components/back-button";
 import { CourseForm } from "../../_components/course-form";
 import { requireRole } from "@/lib/auth/guards";
 
@@ -39,7 +40,9 @@ export default async function EditCoursePage({
       <PageHeader
         title="Edit Course"
         description={`${course.courseCode} — ${course.courseName}`}
-      />
+      >
+        <BackButton fallbackHref={`/courses/${courseId}`} />
+      </PageHeader>
       <CourseForm
         initialData={{
           courseId: course.courseId,

@@ -13,9 +13,12 @@ import {
   LogOut,
   FileBarChart,
   TrendingUp,
+  ArrowLeftRight,
   UserCog,
   History,
   FileText,
+  HardDrive,
+  Megaphone,
 } from "lucide-react";
 
 import {
@@ -58,6 +61,7 @@ const navGroups: NavGroup[] = [
     label: "Training",
     items: [
       { title: "Courses", href: "/courses", icon: BookOpen },
+      { title: "Course Notices", href: "/course-notices", icon: Megaphone },
       { title: "Intakes", href: "/intakes", icon: Calendar },
       { title: "Enrollments", href: "/enrollments", icon: ClipboardList },
       { title: "Results", href: "/results", icon: Award },
@@ -68,6 +72,11 @@ const navGroups: NavGroup[] = [
     items: [
       { title: "Reports", href: "/reports", icon: FileBarChart },
       { title: "Analytics", href: "/analytics", icon: TrendingUp },
+      {
+        title: "Comparative",
+        href: "/analytics/comparative",
+        icon: ArrowLeftRight,
+      },
     ],
   },
   {
@@ -76,6 +85,18 @@ const navGroups: NavGroup[] = [
       { title: "Users", href: "/users", icon: UserCog, adminOnly: true },
       { title: "Audit Logs", href: "/audit-logs", icon: History, adminOnly: true },
       { title: "Documents", href: "/documents", icon: FileText, adminOnly: true },
+      {
+        title: "Cert. Signatures",
+        href: "/settings/signatures",
+        icon: Award,
+        adminOnly: true,
+      },
+      {
+        title: "Backup",
+        href: "/settings/backup",
+        icon: HardDrive,
+        adminOnly: true,
+      },
     ],
   },
 ];
@@ -124,7 +145,13 @@ export function AppSidebar({ user }: AppSidebarProps) {
                     const isActive =
                       pathname === item.href ||
                       (item.href !== "/dashboard" &&
-                        pathname.startsWith(item.href));
+                        pathname.startsWith(item.href) &&
+                        !(
+                          item.href === "/analytics" &&
+                          pathname.startsWith("/analytics/comparative")
+                        )) ||
+                      (item.href === "/analytics/comparative" &&
+                        pathname.startsWith("/analytics/comparative"));
                     return (
                       <SidebarMenuItem key={item.href}>
                         <SidebarMenuButton asChild isActive={isActive}>

@@ -18,15 +18,16 @@ import { GradeBadge } from "@/components/grade-badge";
 import { PositionBadge } from "@/components/position-badge";
 import { StatusBadge } from "@/components/status-badge";
 import {
-  Pencil,
   Calendar,
   User,
   Users,
   Plus,
   Trophy,
+  Upload,
 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
-import { canManageIntakes, canManageEnrollments } from "@/lib/auth/guards";
+import { canManageEnrollments, canManageResults } from "@/lib/auth/guards";
+import { BackButton } from "@/components/back-button";
 
 interface PageProps {
   params: Promise<{ intake_id: string }>;
@@ -72,8 +73,8 @@ export default async function IntakeDetailPage({ params }: PageProps) {
       position: enrollments.position,
       armyNumber: students.armyNumber,
       fullName: students.fullName,
-      rank: students.rank,
-      unit: students.unit,
+      rank: enrollments.rankAtEnrollment,
+      unit: enrollments.unitAtEnrollment,
     })
     .from(enrollments)
     .innerJoin(students, eq(enrollments.studentArmyNumber, students.armyNumber))
@@ -98,12 +99,21 @@ export default async function IntakeDetailPage({ params }: PageProps) {
       >
         {user && canManageEnrollments(user.role) && (
           <Button asChild>
-            <Link href={`/enrollments/new?intakeId=${intakeId}`}>
+            <Link href={`/enrollments/new?courseId=${intake.courseId}&intakeId=${intakeId}`}>
               <Plus className="mr-2 h-4 w-4" />
               Enroll Student
             </Link>
           </Button>
         )}
+        {user && canManageResults(user.role) && (
+          <Button variant="outline" asChild>
+            <Link href={`/results/import?intakeId=${intakeId}`}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import Marks
+            </Link>
+          </Button>
+        )}
+        <BackButton fallbackHref={`/courses/${intake.courseId}`} />
       </PageHeader>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">

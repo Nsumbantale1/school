@@ -45,7 +45,8 @@ export default async function ByStudentReportPage({ searchParams }: PageProps) {
     searchResults = allStudents.filter(
       (s) =>
         s.armyNumber.toLowerCase().includes(lowerQuery) ||
-        s.fullName.toLowerCase().includes(lowerQuery)
+        s.fullName.toLowerCase().includes(lowerQuery) ||
+        s.rank.toLowerCase().includes(lowerQuery)
     );
   }
 
@@ -53,7 +54,7 @@ export default async function ByStudentReportPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       <PageHeader
         title="Report by Student"
-        description="Search for a student to view their performance history"
+        description="Search for a student and open their full Student Training Record (STR)"
       />
 
       {/* Search Form */}
@@ -94,10 +95,9 @@ export default async function ByStudentReportPage({ searchParams }: PageProps) {
             ) : (
               <div className="space-y-2">
                 {searchResults.map((student) => (
-                  <Link
+                  <div
                     key={student.armyNumber}
-                    href={studentPath(student.armyNumber)}
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted transition-colors"
+                    className="flex items-center justify-between p-4 rounded-lg border"
                   >
                     <div>
                       <p className="font-medium">
@@ -108,10 +108,19 @@ export default async function ByStudentReportPage({ searchParams }: PageProps) {
                         {student.unit && ` | ${student.unit}`}
                       </p>
                     </div>
-                    <Button variant="ghost" size="sm">
-                      View Profile
-                    </Button>
-                  </Link>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={studentPath(student.armyNumber, "/service-record")}>
+                          STR
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={studentPath(student.armyNumber)}>
+                          View Profile
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}

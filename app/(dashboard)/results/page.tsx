@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { ResultsTable } from "./_components/results-table";
 import { PrintButton } from "@/components/print-button";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { canManageResults } from "@/lib/auth/guards";
 
@@ -27,7 +27,7 @@ export default async function ResultsPage() {
       resultId: results.resultId,
       studentArmyNumber: students.armyNumber,
       fullName: students.fullName,
-      rank: students.rank,
+      rank: enrollments.rankAtEnrollment,
       courseCode: courses.courseCode,
       intakeNumber: courseIntakes.intakeNumber,
       subjectName: results.subjectName,
@@ -49,12 +49,20 @@ export default async function ResultsPage() {
       <PageHeader title="Results" description="Student exam and assessment results">
         <PrintButton title="Results — School of Field Artillery" />
         {user && canManageResults(user.role) && (
-          <Button asChild>
-            <Link href="/results/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Result
-            </Link>
-          </Button>
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/results/import">
+                <Upload className="mr-2 h-4 w-4" />
+                Import Excel/CSV
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/results/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Result
+              </Link>
+            </Button>
+          </>
         )}
       </PageHeader>
       <ResultsTable data={data} />

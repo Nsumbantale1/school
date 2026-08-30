@@ -25,9 +25,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { PrintButton } from "@/components/print-button";
+import { BackButton } from "@/components/back-button";
 import { studentPath } from "@/lib/utils";
+import { getSessionUser } from "@/lib/auth";
+import { EnrollmentStatusForm } from "../_components/enrollment-status-form";
+import { DownloadCertificateButton } from "@/components/download-certificate-button";
+import { isEligibleForCertificate } from "@/lib/utils/certificate-data";
+import { canManageResults } from "@/lib/auth/guards";
 
 export default async function EnrollmentDetailPage({
   params,
@@ -36,19 +42,26 @@ export default async function EnrollmentDetailPage({
 }) {
   const { enrollment_id } = await params;
   const enrollmentId = parseInt(enrollment_id);
+  const user = await getSessionUser();
+  const isAdmin = user?.role === "admin";
 
   const enrollmentData = await db
     .select({
       enrollmentId: enrollments.enrollmentId,
       studentArmyNumber: enrollments.studentArmyNumber,
       fullName: students.fullName,
-      rank: students.rank,
+      currentRank: students.rank,
+      rankAtEnrollment: enrollments.rankAtEnrollment,
+      unitAtEnrollment: enrollments.unitAtEnrollment,
+      currentUnit: students.unit,
       intakeId: enrollments.intakeId,
       intakeNumber: courseIntakes.intakeNumber,
       courseId: courses.courseId,
       courseCode: courses.courseCode,
       courseName: courses.courseName,
+      passingMark: courses.passingMark,
       status: enrollments.status,
+      ceasedAt: enrollments.ceasedAt,
       totalMarks: enrollments.totalMarks,
       averageMarks: enrollments.averageMarks,
       grade: enrollments.grade,
@@ -63,6 +76,15 @@ export default async function EnrollmentDetailPage({
 
   const enrollment = enrollmentData[0];
   if (!enrollment) notFound();
+
+  const certEligibility = isEligibleForCertificate(
+    enrollment.status,
+    enrollment.grade,
+    enrollment.averageMarks,
+    enrollment.passingMark
+  );
+  const canIssueCert =
+    user && canManageResults(user.role) && certEligibility.eligible;
 
   const enrollmentResults = await db
     .select({
@@ -82,17 +104,18 @@ export default async function EnrollmentDetailPage({
     <div className="space-y-6">
       <PageHeader
         title={`Enrollment #${enrollment.enrollmentId}`}
-        description={`${enrollment.rank} ${enrollment.fullName} — ${enrollment.courseCode}`}
+        description={`${enrollment.rankAtEnrollment} ${enrollment.fullName} — ${enrollment.courseCode}`}
       >
         <PrintButton
           title={`Enrollment #${enrollment.enrollmentId} — ${enrollment.courseCode}`}
         />
+        {canIssueCert && (
+          <DownloadCertificateButton enrollmentId={enrollmentId} />
+        )}
         <Button variant="outline" asChild>
-          <Link href="/enrollments">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Link>
+          <Link href="/enrollments">All Enrollments</Link>
         </Button>
+        <BackButton fallbackHref="/enrollments" />
       </PageHeader>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -109,10 +132,30 @@ export default async function EnrollmentDetailPage({
                     href={studentPath(enrollment.studentArmyNumber)}
                     className="hover:underline"
                   >
-                    {enrollment.rank} {enrollment.fullName}
+                    {enrollment.rankAtEnrollment} {enrollment.fullName}
                   </Link>
                 </dd>
               </div>
+              <div>
+                <dt className="font-medium text-muted-foreground">
+                  Rank at course
+                </dt>
+                <dd>{enrollment.rankAtEnrollment}</dd>
+              </div>
+              {enrollment.currentRank !== enrollment.rankAtEnrollment && (
+                <div>
+                  <dt className="font-medium text-muted-foreground">
+                    Current rank
+                  </dt>
+                  <dd>{enrollment.currentRank}</dd>
+                </div>
+              )}
+              {enrollment.unitAtEnrollment && (
+                <div>
+                  <dt className="font-medium text-muted-foreground">Unit then</dt>
+                  <dd>{enrollment.unitAtEnrollment}</dd>
+                </div>
+              )}
               <div>
                 <dt className="font-medium text-muted-foreground">
                   Army Number
@@ -153,9 +196,42 @@ export default async function EnrollmentDetailPage({
                 </dt>
                 <dd>{new Date(enrollment.createdAt).toLocaleDateString()}</dd>
               </div>
+              {enrollment.ceasedAt && (
+                <div>
+                  <dt className="font-medium text-muted-foreground">
+                    Ceased Training
+                  </dt>
+                  <dd>
+                    {new Date(enrollment.ceasedAt).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </dd>
+                </div>
+              )}
             </dl>
           </CardContent>
         </Card>
+
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Update Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EnrollmentStatusForm
+                enrollmentId={enrollmentId}
+                currentStatus={enrollment.status ?? "enrolled"}
+                ceasedAt={
+                  enrollment.ceasedAt
+                    ? enrollment.ceasedAt.toISOString()
+                    : null
+                }
+              />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

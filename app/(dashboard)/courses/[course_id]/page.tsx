@@ -25,8 +25,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Calendar, Clock, Target, Plus } from "lucide-react";
+import { Calendar, Clock, Target, Plus, UserPlus } from "lucide-react";
 import { PrintButton } from "@/components/print-button";
+import { BackButton } from "@/components/back-button";
+import { getSessionUser } from "@/lib/auth";
+import { canManageEnrollments } from "@/lib/auth/guards";
 
 export default async function CourseDetailPage({
   params,
@@ -35,6 +38,8 @@ export default async function CourseDetailPage({
 }) {
   const { course_id } = await params;
   const courseId = parseInt(course_id);
+  const user = await getSessionUser();
+  const canEnroll = user && canManageEnrollments(user.role);
 
   const course = await db.query.courses.findFirst({
     where: eq(courses.courseId, courseId),
@@ -102,6 +107,9 @@ export default async function CourseDetailPage({
     enrollmentCountMap[ec.intakeId] = ec.count;
   }
 
+  const defaultIntake =
+    intakes.find((i) => i.isActive) ?? intakes[0] ?? null;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -109,15 +117,20 @@ export default async function CourseDetailPage({
         description={course.description ?? "No description"}
       >
         <PrintButton title={`${course.courseCode} — ${course.courseName}`} />
+        {canEnroll && defaultIntake && (
+          <Button asChild>
+            <Link
+              href={`/enrollments/new?courseId=${courseId}&intakeId=${defaultIntake.intakeId}`}
+            >
+              <UserPlus className="mr-2 h-4 w-4" />
+              Add Student
+            </Link>
+          </Button>
+        )}
         <Button variant="outline" asChild>
           <Link href={`/courses/${courseId}/edit`}>Edit Course</Link>
         </Button>
-        <Button variant="outline" asChild>
-          <Link href="/courses">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Link>
-        </Button>
+        <BackButton fallbackHref="/courses" />
       </PageHeader>
 
       {/* Course Info Cards */}
@@ -201,6 +214,7 @@ export default async function CourseDetailPage({
                       <TableHead>Period</TableHead>
                       <TableHead>Students</TableHead>
                       <TableHead>Status</TableHead>
+                      {canEnroll && <TableHead className="text-right">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -230,6 +244,18 @@ export default async function CourseDetailPage({
                             {intake.isActive ? "Active" : "Inactive"}
                           </Badge>
                         </TableCell>
+                        {canEnroll && (
+                          <TableCell className="text-right">
+                            <Button asChild variant="outline" size="sm">
+                              <Link
+                                href={`/enrollments/new?courseId=${courseId}&intakeId=${intake.intakeId}`}
+                              >
+                                <UserPlus className="mr-1 h-3 w-3" />
+                                Add Student
+                              </Link>
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>

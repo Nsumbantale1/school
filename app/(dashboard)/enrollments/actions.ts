@@ -1,11 +1,12 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { enrollments, courseIntakes, courses } from "@/lib/db/schema";
+import { enrollments, courseIntakes, courses, students } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/guards";
 import { checkPrerequisites } from "@/lib/utils/prerequisites";
+import { checkIndisciplineBan } from "@/lib/utils/indiscipline-ban";
 import { recalculatePositions } from "@/lib/utils/positions";
 import { auditCreate, auditUpdate, auditDelete, getChangedFields } from "@/lib/utils/audit";
 
@@ -29,6 +30,27 @@ export async function createEnrollment(formData: FormData) {
     return { success: false, error: "Intake not found." };
   }
 
+  const [student] = await db
+    .select({ rank: students.rank, unit: students.unit })
+    .from(students)
+    .where(eq(students.armyNumber, studentArmyNumber))
+    .limit(1);
+
+  if (!student) {
+    return { success: false, error: "Student not found." };
+  }
+
+  // Block if student has an active indiscipline ban (3 years)
+  const banCheck = await checkIndisciplineBan(studentArmyNumber);
+  if (banCheck.blocked) {
+    return {
+      success: false,
+      error: banCheck.message,
+      indisciplineError: true,
+      incident: banCheck.incident,
+    };
+  }
+
   // Check prerequisites
   const prereqCheck = await checkPrerequisites(studentArmyNumber, intake.courseId);
   if (!prereqCheck.eligible) {
@@ -46,6 +68,8 @@ export async function createEnrollment(formData: FormData) {
       .values({
         studentArmyNumber,
         intakeId,
+        rankAtEnrollment: student.rank,
+        unitAtEnrollment: student.unit,
         status: "enrolled",
       })
       .returning({ enrollmentId: enrollments.enrollmentId });
@@ -87,12 +111,36 @@ export async function updateEnrollmentStatus(enrollmentId: number, formData: For
     | "in_progress"
     | "completed"
     | "failed"
+    | "incomplete"
+    | "indiscipline"
     | "withdrawn";
+
+  const ceasedAtRaw = formData.get("ceasedAt") as string | null;
+  const ceasedAt =
+    ceasedAtRaw && ceasedAtRaw.length > 0 ? new Date(ceasedAtRaw) : null;
+
+  if (
+    (status === "incomplete" || status === "indiscipline") &&
+    !ceasedAt
+  ) {
+    return {
+      success: false,
+      error:
+        "A ceased date is required for incomplete or indiscipline status.",
+    };
+  }
 
   try {
     await db
       .update(enrollments)
-      .set({ status, updatedAt: new Date() })
+      .set({
+        status,
+        ceasedAt:
+          status === "incomplete" || status === "indiscipline"
+            ? ceasedAt
+            : null,
+        updatedAt: new Date(),
+      })
       .where(eq(enrollments.enrollmentId, enrollmentId));
 
     // Recalculate positions if status changed to completed/failed

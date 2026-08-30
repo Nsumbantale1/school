@@ -8,5 +8,7 @@ export * from "./course-prerequisites";
 export * from "./enrollments";
 export * from "./results";
 export * from "./documents";
+export * from "./certificates";
+export * from "./course-notices";
 export * from "./audit-logs";
 export * from "./login-logs";

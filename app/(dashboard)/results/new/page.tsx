@@ -8,6 +8,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, desc, or, asc } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
+import { BackButton } from "@/components/back-button";
 import { ResultForm } from "../_components/result-form";
 import { requireAuth, canManageResults } from "@/lib/auth/guards";
 import { redirect } from "next/navigation";
@@ -82,7 +83,9 @@ export default async function NewResultPage({ searchParams }: PageProps) {
       <PageHeader
         title="Add Result"
         description="Enter exam or assessment result"
-      />
+      >
+        <BackButton fallbackHref="/results" />
+      </PageHeader>
       <ResultForm
         enrollments={activeEnrollments}
         subjectsByCourse={subjectsByCourse}

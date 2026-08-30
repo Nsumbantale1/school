@@ -24,6 +24,10 @@
 .DS_Store
 *.pem
 
+# local backups (never commit)
+/backups/
+SOFA-BACKUPS/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

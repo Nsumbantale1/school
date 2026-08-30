@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { courses } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
+import { BackButton } from "@/components/back-button";
 import { IntakeForm } from "../_components/intake-form";
 import { requireRole } from "@/lib/auth/guards";
 
@@ -30,7 +31,13 @@ export default async function NewIntakePage({ searchParams }: PageProps) {
       <PageHeader
         title="Add Intake"
         description="Create a new course intake"
-      />
+      >
+        <BackButton
+          fallbackHref={
+            defaultCourseId ? `/courses/${defaultCourseId}` : "/intakes"
+          }
+        />
+      </PageHeader>
       <IntakeForm courses={activeCourses} defaultCourseId={defaultCourseId} />
     </div>
   );

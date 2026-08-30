@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SearchableSelect } from "@/components/searchable-select";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import { createEnrollment } from "../actions";
+import { BackButton } from "@/components/back-button";
 
 interface Student {
   armyNumber: string;
@@ -29,6 +30,7 @@ interface EnrollmentFormProps {
   intakes: Intake[];
   defaultIntakeId?: number;
   defaultStudentArmyNumber?: string;
+  backHref?: string;
 }
 
 export function EnrollmentForm({
@@ -36,15 +38,18 @@ export function EnrollmentForm({
   intakes,
   defaultIntakeId,
   defaultStudentArmyNumber,
+  backHref = "/enrollments",
 }: EnrollmentFormProps) {
   const router = useRouter();
   const [pending, setPending] = React.useState(false);
   const [prerequisiteError, setPrerequisiteError] = React.useState<string | null>(null);
+  const [indisciplineError, setIndisciplineError] = React.useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setPending(true);
     setPrerequisiteError(null);
+    setIndisciplineError(null);
 
     const formData = new FormData(e.currentTarget);
     const result = await createEnrollment(formData);
@@ -54,8 +59,10 @@ export function EnrollmentForm({
     if (result.success) {
       toast.success("Enrollment created successfully.");
       router.push("/enrollments");
-    } else if ((result as any).prerequisiteError) {
-      setPrerequisiteError((result as any).error);
+    } else if ((result as { indisciplineError?: boolean }).indisciplineError) {
+      setIndisciplineError(result.error ?? "Enrollment blocked.");
+    } else if ((result as { prerequisiteError?: boolean }).prerequisiteError) {
+      setPrerequisiteError(result.error ?? "Prerequisites not met.");
     } else {
       toast.error(result.error ?? "An error occurred.");
     }
@@ -63,6 +70,20 @@ export function EnrollmentForm({
 
   return (
     <form onSubmit={handleSubmit} className="max-w-xl space-y-4">
+      {indisciplineError && (
+        <Card className="border-purple-500 bg-purple-50 dark:bg-purple-950/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-purple-800 dark:text-purple-300 flex items-center gap-2 text-base">
+              <AlertCircle className="h-4 w-4" />
+              Indiscipline Case — Enrollment Blocked
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">{indisciplineError}</p>
+          </CardContent>
+        </Card>
+      )}
+
       {prerequisiteError && (
         <Card className="border-destructive bg-destructive/10">
           <CardHeader className="pb-2">
@@ -108,7 +129,7 @@ export function EnrollmentForm({
           }))}
         />
         <p className="text-sm text-muted-foreground">
-          Prerequisites will be checked automatically before enrollment.
+          Prerequisites and indiscipline checks run automatically before enrollment.
         </p>
       </div>
 
@@ -116,9 +137,7 @@ export function EnrollmentForm({
         <Button type="submit" disabled={pending}>
           {pending ? "Creating..." : "Create Enrollment"}
         </Button>
-        <Button type="button" variant="outline" onClick={() => router.back()}>
-          Cancel
-        </Button>
+        <BackButton fallbackHref={backHref} label="Cancel" />
       </div>
     </form>
   );

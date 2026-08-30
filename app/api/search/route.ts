@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   const results: SearchResult[] = [];
 
   try {
-    // Name / army number only — searching by rank floods results
+    // Search by name, army number, or current rank
     const matchingStudents = await db
       .select({
         armyNumber: students.armyNumber,
@@ -44,7 +44,8 @@ export async function GET(request: NextRequest) {
           eq(students.isActive, true),
           or(
             ilike(students.armyNumber, searchPattern),
-            ilike(students.fullName, searchPattern)
+            ilike(students.fullName, searchPattern),
+            ilike(students.rank, searchPattern)
           )
         )
       )
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
 
     for (const student of matchingStudents) {
       const details = [
-        student.rank,
+        `Current: ${student.rank}`,
         student.armyNumber,
         student.unit || null,
       ].filter(Boolean);

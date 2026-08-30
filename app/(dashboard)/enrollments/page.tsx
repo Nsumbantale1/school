@@ -20,7 +20,7 @@ export default async function EnrollmentsPage() {
       enrollmentId: enrollments.enrollmentId,
       studentArmyNumber: enrollments.studentArmyNumber,
       fullName: students.fullName,
-      rank: students.rank,
+      rank: enrollments.rankAtEnrollment,
       courseCode: courses.courseCode,
       courseName: courses.courseName,
       intakeNumber: courseIntakes.intakeNumber,
