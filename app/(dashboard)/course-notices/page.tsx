@@ -1,11 +1,19 @@
 export const dynamic = "force-dynamic";
 
+import { Barlow_Condensed } from "next/font/google";
 import { db } from "@/lib/db";
 import { courses } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
 import { BackButton } from "@/components/back-button";
-import { CourseNoticesGrid } from "./_components/course-notices-grid";
+import { NoticesCourseFolders } from "./_components/notices-course-folders";
+import { buildNoticeFolders } from "@/lib/utils/notice-course-groups";
+
+const courseDisplay = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-course-display",
+});
 
 export default async function CourseNoticesIndexPage() {
   const data = await db
@@ -27,25 +35,27 @@ export default async function CourseNoticesIndexPage() {
     .where(eq(courses.isActive, true))
     .orderBy(courses.courseCode);
 
+  const folders = buildNoticeFolders(
+    data.map((c) => ({
+      courseId: c.courseId,
+      courseCode: c.courseCode,
+      courseName: c.courseName,
+      durationWeeks: c.durationWeeks,
+      noticeCount: Number(c.noticeCount) || 0,
+      exerciseCount: Number(c.exerciseCount) || 0,
+    }))
+  );
+
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${courseDisplay.variable}`}>
       <PageHeader
         title="Course Notices"
-        description="Select a course, then choose a subject to view or upload notices. Training exercises are managed per course."
+        description="Fungua kozi — kama ina levels, chagua level kisha uone notices zote"
       >
         <BackButton fallbackHref="/dashboard" />
       </PageHeader>
 
-      <CourseNoticesGrid
-        courses={data.map((c) => ({
-          courseId: c.courseId,
-          courseCode: c.courseCode,
-          courseName: c.courseName,
-          durationWeeks: c.durationWeeks,
-          noticeCount: Number(c.noticeCount),
-          exerciseCount: Number(c.exerciseCount),
-        }))}
-      />
+      <NoticesCourseFolders folders={folders} />
     </div>
   );
 }

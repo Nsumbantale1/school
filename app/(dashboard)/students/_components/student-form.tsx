@@ -27,6 +27,7 @@ interface StudentFormProps {
     phone: string | null;
     email: string | null;
     notes: string | null;
+    photoPath?: string | null;
   };
 }
 
@@ -175,6 +176,26 @@ export function StudentForm({ initialData }: StudentFormProps) {
             defaultValue={initialData?.email ?? ""}
           />
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="photo">Photograph</Label>
+        {initialData?.photoPath && (
+          <img
+            src={initialData.photoPath}
+            alt={initialData.fullName}
+            className="h-28 w-24 rounded-md object-cover border"
+          />
+        )}
+        <Input
+          id="photo"
+          name="photo"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+        />
+        <p className="text-sm text-muted-foreground">
+          Optional portrait for the final course report (PNG, JPEG, or WebP).
+        </p>
       </div>
 
       <div className="space-y-2">

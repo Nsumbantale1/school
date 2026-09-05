@@ -37,12 +37,43 @@ async function seed() {
   console.log("=== Seeding School of Field Artillery ===\n");
 
   // --- Users ---
+  // Default passwords are for LOCAL DEV ONLY. Never use these in production.
+  // Override with SEED_ADMIN_PASSWORD / SEED_INSTRUCTOR_PASSWORD / SEED_VIEWER_PASSWORD.
   console.log("1. Seeding users...");
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Refuse to seed default users in production. Create accounts with strong passwords instead."
+    );
+  }
   const seedUsers = [
-    { username: "admin", password: "admin123", name: "System Administrator", role: "admin" as const },
-    { username: "instructor", password: "inst123", name: "Course Instructor", role: "instructor" as const },
-    { username: "viewer", password: "view123", name: "Records Viewer", role: "viewer" as const },
+    {
+      username: "admin",
+      password: process.env.SEED_ADMIN_PASSWORD || "admin123",
+      name: "System Administrator",
+      role: "admin" as const,
+    },
+    {
+      username: "instructor",
+      password: process.env.SEED_INSTRUCTOR_PASSWORD || "inst123",
+      name: "Course Instructor",
+      role: "instructor" as const,
+    },
+    {
+      username: "viewer",
+      password: process.env.SEED_VIEWER_PASSWORD || "view123",
+      name: "Records Viewer",
+      role: "viewer" as const,
+    },
   ];
+  if (
+    seedUsers.some((u) =>
+      ["admin123", "inst123", "view123"].includes(u.password)
+    )
+  ) {
+    console.warn(
+      "   WARNING: Using weak default seed passwords. Change them before any shared/deployed use."
+    );
+  }
   for (const u of seedUsers) {
     const passwordHash = await hashPassword(u.password);
     await db.insert(users).values({

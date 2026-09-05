@@ -22,16 +22,29 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
   searchKey?: string;
+  searchKeys?: string[];
   searchPlaceholder?: string;
+  hideSearch?: boolean;
   onRowClick?: (row: T) => void;
   getRowKey: (row: T) => string | number;
+}
+
+function rowMatchesSearch<T>(row: T, keys: string[], query: string): boolean {
+  const lower = query.toLowerCase();
+  return keys.some((key) =>
+    String((row as Record<string, unknown>)[key] ?? "")
+      .toLowerCase()
+      .includes(lower),
+  );
 }
 
 export function DataTable<T>({
   columns,
   data,
   searchKey,
+  searchKeys,
   searchPlaceholder = "Search...",
+  hideSearch = false,
   onRowClick,
   getRowKey,
 }: DataTableProps<T>) {
@@ -39,16 +52,13 @@ export function DataTable<T>({
   const [sortKey, setSortKey] = React.useState<string | null>(null);
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
 
+  const keys = searchKeys ?? (searchKey ? [searchKey] : []);
+  const showSearch = !hideSearch && keys.length > 0;
+
   const filtered = React.useMemo(() => {
-    if (!search || !searchKey) return data;
-    const lower = search.toLowerCase();
-    return data.filter((row) => {
-      const val = (row as Record<string, unknown>)[searchKey];
-      return String(val ?? "")
-        .toLowerCase()
-        .includes(lower);
-    });
-  }, [data, search, searchKey]);
+    if (!search || keys.length === 0) return data;
+    return data.filter((row) => rowMatchesSearch(row, keys, search));
+  }, [data, search, keys]);
 
   const sorted = React.useMemo(() => {
     if (!sortKey) return filtered;
@@ -71,12 +81,12 @@ export function DataTable<T>({
 
   return (
     <div className="space-y-4">
-      {searchKey && (
+      {showSearch && (
         <Input
           placeholder={searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
+          className="max-w-lg"
         />
       )}
       <div className="rounded-md border">

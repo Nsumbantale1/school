@@ -6,6 +6,10 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireRole, requireAuth } from "@/lib/auth/guards";
 import { auditCreate, auditUpdate, auditDelete, getChangedFields } from "@/lib/utils/audit";
+import {
+  replaceStudentPhotoDocument,
+  saveStudentPhoto,
+} from "@/lib/utils/student-photo";
 
 export async function createStudent(formData: FormData) {
   const user = await requireRole(["admin"]);
@@ -19,6 +23,7 @@ export async function createStudent(formData: FormData) {
   const phone = (formData.get("phone") as string) || null;
   const email = (formData.get("email") as string) || null;
   const notes = (formData.get("notes") as string) || null;
+  const photo = formData.get("photo");
 
   try {
     await db.insert(students).values({
@@ -32,6 +37,19 @@ export async function createStudent(formData: FormData) {
       email,
       notes,
     });
+
+    if (photo instanceof File && photo.size > 0) {
+      const saved = await saveStudentPhoto(armyNumber, photo);
+      if ("error" in saved) return { success: false, error: saved.error };
+      await replaceStudentPhotoDocument({
+        armyNumber,
+        filePath: saved.path,
+        fileName: saved.fileName,
+        fileType: saved.fileType,
+        fileSize: saved.fileSize,
+        uploadedBy: user.userId,
+      });
+    }
 
     await auditCreate(user, "students", armyNumber, {
       armyNumber,
@@ -82,6 +100,20 @@ export async function updateStudent(armyNumber: string, formData: FormData) {
   };
 
   try {
+    const photo = formData.get("photo");
+    if (photo instanceof File && photo.size > 0) {
+      const saved = await saveStudentPhoto(armyNumber, photo);
+      if ("error" in saved) return { success: false, error: saved.error };
+      await replaceStudentPhotoDocument({
+        armyNumber,
+        filePath: saved.path,
+        fileName: saved.fileName,
+        fileType: saved.fileType,
+        fileSize: saved.fileSize,
+        uploadedBy: user.userId,
+      });
+    }
+
     await db
       .update(students)
       .set(newData)

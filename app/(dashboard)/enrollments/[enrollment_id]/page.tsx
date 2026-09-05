@@ -34,6 +34,9 @@ import { EnrollmentStatusForm } from "../_components/enrollment-status-form";
 import { DownloadCertificateButton } from "@/components/download-certificate-button";
 import { isEligibleForCertificate } from "@/lib/utils/certificate-data";
 import { canManageResults } from "@/lib/auth/guards";
+import { parseBccResults } from "@/lib/utils/bcc-report";
+import { FinalCourseReport } from "@/app/(dashboard)/students/[army_number]/_components/final-course-report";
+import { getStudentPhotoPath } from "@/lib/utils/student-photo";
 
 export default async function EnrollmentDetailPage({
   params,
@@ -56,6 +59,8 @@ export default async function EnrollmentDetailPage({
       currentUnit: students.unit,
       intakeId: enrollments.intakeId,
       intakeNumber: courseIntakes.intakeNumber,
+      startDate: courseIntakes.startDate,
+      endDate: courseIntakes.endDate,
       courseId: courses.courseId,
       courseCode: courses.courseCode,
       courseName: courses.courseName,
@@ -98,12 +103,19 @@ export default async function EnrollmentDetailPage({
     })
     .from(results)
     .where(eq(results.enrollmentId, enrollmentId))
-    .orderBy(results.subjectName);
+    .orderBy(results.resultId);
+
+  const bccReport = parseBccResults(enrollmentResults);
+  const photoPath = await getStudentPhotoPath(enrollment.studentArmyNumber);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Enrollment #${enrollment.enrollmentId}`}
+        title={
+          bccReport
+            ? `Final Course Report — ${enrollment.rankAtEnrollment} ${enrollment.fullName}`
+            : `Enrollment #${enrollment.enrollmentId}`
+        }
         description={`${enrollment.rankAtEnrollment} ${enrollment.fullName} — ${enrollment.courseCode}`}
       >
         <PrintButton
@@ -118,7 +130,24 @@ export default async function EnrollmentDetailPage({
         <BackButton fallbackHref="/enrollments" />
       </PageHeader>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {bccReport && (
+        <FinalCourseReport
+          forceNo={enrollment.studentArmyNumber}
+          rank={enrollment.rankAtEnrollment}
+          fullName={enrollment.fullName}
+          unit={enrollment.unitAtEnrollment ?? enrollment.currentUnit}
+          courseCode={enrollment.courseCode}
+          courseName={enrollment.courseName}
+          intakeNumber={enrollment.intakeNumber}
+          commenced={enrollment.startDate}
+          completed={enrollment.endDate}
+          position={enrollment.position}
+          photoPath={photoPath}
+          report={bccReport}
+        />
+      )}
+
+      <div className={`grid gap-4 lg:grid-cols-2 ${bccReport ? "print:hidden" : ""}`}>
         <Card>
           <CardHeader>
             <CardTitle>Enrollment Details</CardTitle>
@@ -284,6 +313,7 @@ export default async function EnrollmentDetailPage({
         </Card>
       </div>
 
+      {!bccReport && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Results ({enrollmentResults.length})</CardTitle>
@@ -339,6 +369,7 @@ export default async function EnrollmentDetailPage({
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

@@ -18,6 +18,7 @@ export const users = pgTable(
     username: varchar("username", { length: 50 }).notNull().unique(),
     passwordHash: varchar("password_hash", { length: 255 }).notNull(),
     name: varchar("name", { length: 100 }).notNull(),
+    email: varchar("email", { length: 120 }),
     role: userRoleEnum("role").notNull().default("viewer"),
     // For instructor: which course they can manage results for
     assignedCourseId: integer("assigned_course_id").references(

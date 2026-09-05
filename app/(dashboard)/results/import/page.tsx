@@ -19,6 +19,9 @@ export default async function ImportResultsPage({ searchParams }: PageProps) {
     redirect("/results");
   }
 
+  // Official SOFA workbook import is admin-only (see importOfficialSofaWorkbook).
+  // Instructors may still use the CSV/manual import path for their course.
+
   const params = await searchParams;
 
   let intakeRows = await db
@@ -54,25 +57,20 @@ export default async function ImportResultsPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       <PageHeader
         title="Import Results"
-        description="Upload coordinator marks from Excel (.xlsx) or CSV into an intake"
+        description="Upload official SOFA course Excel files, or a simple marks template"
       >
         <BackButton fallbackHref="/results" label="Back to Results" />
       </PageHeader>
 
-      {intakes.length === 0 ? (
-        <p className="text-muted-foreground">
-          No active intakes found. Create a course intake and enroll students first.
-        </p>
-      ) : (
-        <ImportResultsForm
-          intakes={intakes}
-          defaultIntakeId={
-            defaultIntakeId && !Number.isNaN(defaultIntakeId)
-              ? defaultIntakeId
-              : undefined
-          }
-        />
-      )}
+      <ImportResultsForm
+        intakes={intakes}
+        canImportOfficial={user.role === "admin"}
+        defaultIntakeId={
+          defaultIntakeId && !Number.isNaN(defaultIntakeId)
+            ? defaultIntakeId
+            : undefined
+        }
+      />
     </div>
   );
 }

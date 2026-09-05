@@ -28,6 +28,8 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { canManageEnrollments, canManageResults } from "@/lib/auth/guards";
 import { BackButton } from "@/components/back-button";
+import { formatIntakeLabel } from "@/lib/utils/intake-label";
+import { getCourseDisplayMeta } from "@/lib/utils/course-catalog";
 
 interface PageProps {
   params: Promise<{ intake_id: string }>;
@@ -35,51 +37,52 @@ interface PageProps {
 
 export default async function IntakeDetailPage({ params }: PageProps) {
   const { intake_id } = await params;
-  const intakeId = parseInt(intake_id);
+  const intakeId = parseInt(intake_id, 10);
+  if (!Number.isFinite(intakeId)) notFound();
+
   const user = await getSessionUser();
 
-  // Get intake with course info
-  const [intake] = await db
-    .select({
-      intakeId: courseIntakes.intakeId,
-      intakeNumber: courseIntakes.intakeNumber,
-      year: courseIntakes.year,
-      commanderName: courseIntakes.commanderName,
-      coordinatorName: courseIntakes.coordinatorName,
-      startDate: courseIntakes.startDate,
-      endDate: courseIntakes.endDate,
-      courseId: courses.courseId,
-      courseCode: courses.courseCode,
-      courseName: courses.courseName,
-      passingMark: courses.passingMark,
-    })
-    .from(courseIntakes)
-    .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
-    .where(eq(courseIntakes.intakeId, intakeId))
-    .limit(1);
+  const [[intake], intakeEnrollments] = await Promise.all([
+    db
+      .select({
+        intakeId: courseIntakes.intakeId,
+        intakeNumber: courseIntakes.intakeNumber,
+        year: courseIntakes.year,
+        commanderName: courseIntakes.commanderName,
+        coordinatorName: courseIntakes.coordinatorName,
+        startDate: courseIntakes.startDate,
+        endDate: courseIntakes.endDate,
+        courseId: courses.courseId,
+        courseCode: courses.courseCode,
+        courseName: courses.courseName,
+        passingMark: courses.passingMark,
+      })
+      .from(courseIntakes)
+      .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
+      .where(eq(courseIntakes.intakeId, intakeId))
+      .limit(1),
+    db
+      .select({
+        enrollmentId: enrollments.enrollmentId,
+        status: enrollments.status,
+        totalMarks: enrollments.totalMarks,
+        averageMarks: enrollments.averageMarks,
+        grade: enrollments.grade,
+        position: enrollments.position,
+        armyNumber: students.armyNumber,
+        fullName: students.fullName,
+        rank: enrollments.rankAtEnrollment,
+        unit: enrollments.unitAtEnrollment,
+      })
+      .from(enrollments)
+      .innerJoin(students, eq(enrollments.studentArmyNumber, students.armyNumber))
+      .where(eq(enrollments.intakeId, intakeId))
+      .orderBy(enrollments.position),
+  ]);
 
   if (!intake) {
     notFound();
   }
-
-  // Get enrolled students with their results
-  const intakeEnrollments = await db
-    .select({
-      enrollmentId: enrollments.enrollmentId,
-      status: enrollments.status,
-      totalMarks: enrollments.totalMarks,
-      averageMarks: enrollments.averageMarks,
-      grade: enrollments.grade,
-      position: enrollments.position,
-      armyNumber: students.armyNumber,
-      fullName: students.fullName,
-      rank: enrollments.rankAtEnrollment,
-      unit: enrollments.unitAtEnrollment,
-    })
-    .from(enrollments)
-    .innerJoin(students, eq(enrollments.studentArmyNumber, students.armyNumber))
-    .where(eq(enrollments.intakeId, intakeId))
-    .orderBy(enrollments.position);
 
   // Calculate statistics
   const totalStudents = intakeEnrollments.length;
@@ -91,11 +94,22 @@ export default async function IntakeDetailPage({ params }: PageProps) {
   ).length;
   const failedCount = intakeEnrollments.filter((e) => e.grade === "F").length;
 
+  const intakeLabel = formatIntakeLabel({
+    intakeNumber: intake.intakeNumber,
+    startDate: intake.startDate,
+    endDate: intake.endDate,
+    year: intake.year,
+  });
+  const courseLabel = getCourseDisplayMeta(
+    intake.courseCode,
+    intake.courseName
+  ).label;
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${intake.courseName} - ${intake.intakeNumber}`}
-        description={`${intake.courseCode} (${intake.year})`}
+        title={`${courseLabel} · ${intakeLabel}`}
+        description={intake.courseName}
       >
         {user && canManageEnrollments(user.role) && (
           <Button asChild>

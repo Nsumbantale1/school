@@ -21,6 +21,7 @@ interface StudentRow {
   gender: string;
   unit: string | null;
   phone: string | null;
+  photoPath?: string | null;
   isActive: boolean;
   enrollments: { courseId: number; intakeId: number }[];
 }
@@ -40,6 +41,20 @@ interface IntakeOption {
 const ALL = "__all__";
 
 const columns: Column<StudentRow>[] = [
+  {
+    key: "photoPath",
+    header: "",
+    cell: (row) =>
+      row.photoPath ? (
+        <img
+          src={row.photoPath}
+          alt=""
+          className="h-9 w-8 rounded object-cover border"
+        />
+      ) : (
+        <div className="h-9 w-8 rounded border bg-muted" />
+      ),
+  },
   {
     key: "armyNumber",
     header: "Army Number",
@@ -245,7 +260,8 @@ export function StudentsTable({
         columns={columns}
         data={filtered}
         searchKey="fullName"
-        searchPlaceholder="Search by name..."
+        searchKeys={["fullName", "armyNumber", "unit", "rank"]}
+        searchPlaceholder="Search name, army number, rank, or unit (e.g. SOFA)..."
         getRowKey={(row) => row.armyNumber}
         onRowClick={(row) => router.push(studentPath(row.armyNumber))}
       />

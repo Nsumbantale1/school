@@ -25,6 +25,8 @@ export const userRoleEnum = pgEnum("user_role", [
   "admin",
   "instructor",
   "viewer",
+  "chief_instructor",
+  "commandant",
 ]);
 
 // Grades for results
@@ -43,6 +45,26 @@ export const officialRoleEnum = pgEnum("official_role", [
   "chief_instructor",
   "commandant",
 ]);
+
+/** Dual-approval certificate print requests */
+export const certificateRequestStatusEnum = pgEnum(
+  "certificate_request_status",
+  [
+    "draft",
+    "pending_chief_instructor",
+    "pending_commandant",
+    "approved",
+    "rejected",
+    "cancelled",
+    "issued",
+    "partially_issued",
+  ]
+);
+
+export const certificateRequestItemStatusEnum = pgEnum(
+  "certificate_request_item_status",
+  ["pending", "issued", "removed"]
+);
 
 export const noticeCategoryEnum = pgEnum("notice_category", [
   "general",

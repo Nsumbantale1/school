@@ -25,7 +25,6 @@ interface BackupSummary {
 export function BackupManager({ summary }: { summary: BackupSummary }) {
   const [downloading, setDownloading] = useState(false);
   const [restoring, setRestoring] = useState(false);
-  const [includeEnv, setIncludeEnv] = useState(false);
 
   async function handleDownload() {
     setDownloading(true);
@@ -73,7 +72,6 @@ export function BackupManager({ summary }: { summary: BackupSummary }) {
 
     setRestoring(true);
     const formData = new FormData(e.currentTarget);
-    formData.set("includeEnv", includeEnv ? "true" : "false");
 
     const result = await restoreFromBackupFile(formData);
     setRestoring(false);
@@ -152,19 +150,11 @@ export function BackupManager({ summary }: { summary: BackupSummary }) {
               />
             </div>
 
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={includeEnv}
-                onChange={(e) => setIncludeEnv(e.target.checked)}
-              />
+            <label className="flex items-start gap-2 text-sm text-muted-foreground">
               <span>
-                Also restore database connection settings (.env.local) from backup
-                <span className="block text-xs text-muted-foreground mt-1">
-                  Enable this when restoring on a new computer with the same Neon
-                  database.
-                </span>
+                Backups include database rows and uploaded files only. Connection
+                secrets (<code>.env.local</code>) are never included or restored
+                from backup archives.
               </span>
             </label>
 

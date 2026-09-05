@@ -2,34 +2,25 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { Barlow_Condensed } from "next/font/google";
 import { db } from "@/lib/db";
-import {
-  courses,
-  courseIntakes,
-  coursePrerequisites,
-  enrollments,
-  students,
-} from "@/lib/db/schema";
-import { eq, count, desc } from "drizzle-orm";
+import { courses, courseIntakes, enrollments } from "@/lib/db/schema";
+import { eq, desc, sql } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "@/components/status-badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, Clock, Target, Plus, UserPlus } from "lucide-react";
-import { PrintButton } from "@/components/print-button";
 import { BackButton } from "@/components/back-button";
 import { getSessionUser } from "@/lib/auth";
-import { canManageEnrollments } from "@/lib/auth/guards";
+import { canManageEnrollments, canManageCourses } from "@/lib/auth/guards";
+import { getCourseDisplayMeta } from "@/lib/utils/course-catalog";
+import { CourseIntakesList } from "./_components/course-intakes-list";
+
+const courseDisplay = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-course-display",
+});
 
 export default async function CourseDetailPage({
   params,
@@ -37,324 +28,151 @@ export default async function CourseDetailPage({
   params: Promise<{ course_id: string }>;
 }) {
   const { course_id } = await params;
-  const courseId = parseInt(course_id);
+  const courseId = parseInt(course_id, 10);
+  if (!Number.isFinite(courseId)) notFound();
+
   const user = await getSessionUser();
-  const canEnroll = user && canManageEnrollments(user.role);
+  const canEnroll = !!user && canManageEnrollments(user.role);
+  const canEdit = !!user && canManageCourses(user.role);
 
-  const course = await db.query.courses.findFirst({
-    where: eq(courses.courseId, courseId),
-  });
-  if (!course) notFound();
-
-  const [intakes, prerequisites, prerequisiteFor] = await Promise.all([
-    // Get all intakes for this course
+  const [course, intakes] = await Promise.all([
+    db.query.courses.findFirst({
+      where: eq(courses.courseId, courseId),
+      columns: {
+        courseId: true,
+        courseCode: true,
+        courseName: true,
+        durationWeeks: true,
+        passingMark: true,
+        isActive: true,
+      },
+    }),
     db
       .select({
         intakeId: courseIntakes.intakeId,
         intakeNumber: courseIntakes.intakeNumber,
         year: courseIntakes.year,
         commanderName: courseIntakes.commanderName,
-        coordinatorName: courseIntakes.coordinatorName,
         startDate: courseIntakes.startDate,
         endDate: courseIntakes.endDate,
         isActive: courseIntakes.isActive,
+        studentCount: sql<number>`coalesce(count(${enrollments.enrollmentId}), 0)`,
       })
       .from(courseIntakes)
+      .leftJoin(enrollments, eq(enrollments.intakeId, courseIntakes.intakeId))
       .where(eq(courseIntakes.courseId, courseId))
-      .orderBy(desc(courseIntakes.year), desc(courseIntakes.intakeNumber)),
-
-    // Get prerequisites for this course
-    db
-      .select({
-        courseId: courses.courseId,
-        courseCode: courses.courseCode,
-        courseName: courses.courseName,
-        isOptional: coursePrerequisites.isOptional,
-      })
-      .from(coursePrerequisites)
-      .innerJoin(
-        courses,
-        eq(coursePrerequisites.prerequisiteCourseId, courses.courseId)
+      .groupBy(
+        courseIntakes.intakeId,
+        courseIntakes.intakeNumber,
+        courseIntakes.year,
+        courseIntakes.commanderName,
+        courseIntakes.startDate,
+        courseIntakes.endDate,
+        courseIntakes.isActive
       )
-      .where(eq(coursePrerequisites.courseId, courseId)),
-
-    // Get courses that require this as a prerequisite
-    db
-      .select({
-        courseId: courses.courseId,
-        courseCode: courses.courseCode,
-        courseName: courses.courseName,
-        isOptional: coursePrerequisites.isOptional,
-      })
-      .from(coursePrerequisites)
-      .innerJoin(courses, eq(coursePrerequisites.courseId, courses.courseId))
-      .where(eq(coursePrerequisites.prerequisiteCourseId, courseId)),
+      .orderBy(desc(courseIntakes.year), desc(courseIntakes.intakeNumber)),
   ]);
 
-  // Get enrollment counts for each intake
-  const intakeEnrollmentCounts = await Promise.all(
-    intakes.map(async (intake) => {
-      const result = await db
-        .select({ count: count() })
-        .from(enrollments)
-        .where(eq(enrollments.intakeId, intake.intakeId));
-      return { intakeId: intake.intakeId, count: result[0]?.count ?? 0 };
-    })
-  );
+  if (!course) notFound();
 
-  const enrollmentCountMap: Record<number, number> = {};
-  for (const ec of intakeEnrollmentCounts) {
-    enrollmentCountMap[ec.intakeId] = ec.count;
-  }
-
+  const display = getCourseDisplayMeta(course.courseCode, course.courseName);
+  const intakeRows = intakes.map((i) => ({
+    ...i,
+    studentCount: Number(i.studentCount) || 0,
+  }));
   const defaultIntake =
-    intakes.find((i) => i.isActive) ?? intakes[0] ?? null;
+    intakeRows.find((i) => i.isActive) ?? intakeRows[0] ?? null;
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${courseDisplay.variable}`}>
       <PageHeader
-        title={`${course.courseCode} — ${course.courseName}`}
-        description={course.description ?? "No description"}
+        title={display.label}
+        description={`${course.courseName} · ${intakeRows.length} intake${intakeRows.length === 1 ? "" : "s"}`}
       >
-        <PrintButton title={`${course.courseCode} — ${course.courseName}`} />
         {canEnroll && defaultIntake && (
           <Button asChild>
             <Link
               href={`/enrollments/new?courseId=${courseId}&intakeId=${defaultIntake.intakeId}`}
+              prefetch={false}
             >
               <UserPlus className="mr-2 h-4 w-4" />
               Add Student
             </Link>
           </Button>
         )}
-        <Button variant="outline" asChild>
-          <Link href={`/courses/${courseId}/edit`}>Edit Course</Link>
-        </Button>
+        {canEdit && (
+          <>
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/intakes/new?courseId=${courseId}`} prefetch={false}>
+                <Plus className="mr-2 h-4 w-4" />
+                New Intake
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/courses/${courseId}/edit`} prefetch={false}>
+                Edit
+              </Link>
+            </Button>
+          </>
+        )}
         <BackButton fallbackHref="/courses" />
       </PageHeader>
 
-      {/* Course Info Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-primary/10">
-                <Clock className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Duration</p>
-                <p className="font-medium">{course.durationWeeks} weeks</p>
-              </div>
+          <CardContent className="flex items-center gap-3 pt-5 pb-5">
+            <div className="rounded-md bg-primary/10 p-2">
+              <Clock className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Duration</p>
+              <p className="text-sm font-medium">{course.durationWeeks} weeks</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-primary/10">
-                <Target className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Passing Mark</p>
-                <p className="font-medium">{course.passingMark}%</p>
-              </div>
+          <CardContent className="flex items-center gap-3 pt-5 pb-5">
+            <div className="rounded-md bg-primary/10 p-2">
+              <Target className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Passing Mark</p>
+              <p className="text-sm font-medium">{course.passingMark}%</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-primary/10">
-                <Calendar className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Intakes</p>
-                <p className="font-medium">{intakes.length}</p>
-              </div>
+          <CardContent className="flex items-center gap-3 pt-5 pb-5">
+            <div className="rounded-md bg-primary/10 p-2">
+              <Calendar className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Intakes</p>
+              <p className="text-sm font-medium">{intakeRows.length}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="intakes">
-        <TabsList>
-          <TabsTrigger value="intakes">Intakes ({intakes.length})</TabsTrigger>
-          <TabsTrigger value="prerequisites">
-            Prerequisites ({prerequisites.length})
-          </TabsTrigger>
-          <TabsTrigger value="prerequisite-for">
-            Required For ({prerequisiteFor.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="intakes">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Course Intakes</CardTitle>
-              <Button asChild size="sm">
-                <Link href={`/intakes/new?courseId=${courseId}`}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Intake
-                </Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {intakes.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No intakes created for this course yet.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Intake Number</TableHead>
-                      <TableHead>Year</TableHead>
-                      <TableHead>Commander</TableHead>
-                      <TableHead>Coordinator</TableHead>
-                      <TableHead>Period</TableHead>
-                      <TableHead>Students</TableHead>
-                      <TableHead>Status</TableHead>
-                      {canEnroll && <TableHead className="text-right">Actions</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {intakes.map((intake) => (
-                      <TableRow key={intake.intakeId}>
-                        <TableCell>
-                          <Link
-                            href={`/intakes/${intake.intakeId}`}
-                            className="font-medium hover:underline"
-                          >
-                            {intake.intakeNumber}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{intake.year}</TableCell>
-                        <TableCell>{intake.commanderName ?? "—"}</TableCell>
-                        <TableCell>{intake.coordinatorName ?? "—"}</TableCell>
-                        <TableCell className="text-sm">
-                          {intake.startDate} — {intake.endDate ?? "Ongoing"}
-                        </TableCell>
-                        <TableCell>
-                          {enrollmentCountMap[intake.intakeId] ?? 0}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={intake.isActive ? "default" : "secondary"}
-                          >
-                            {intake.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </TableCell>
-                        {canEnroll && (
-                          <TableCell className="text-right">
-                            <Button asChild variant="outline" size="sm">
-                              <Link
-                                href={`/enrollments/new?courseId=${courseId}&intakeId=${intake.intakeId}`}
-                              >
-                                <UserPlus className="mr-1 h-3 w-3" />
-                                Add Student
-                              </Link>
-                            </Button>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="prerequisites">
-          <Card>
-            <CardHeader>
-              <CardTitle>Course Prerequisites</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {prerequisites.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  This course has no prerequisites.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Course Code</TableHead>
-                      <TableHead>Course Name</TableHead>
-                      <TableHead>Requirement</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {prerequisites.map((p) => (
-                      <TableRow key={p.courseId}>
-                        <TableCell>
-                          <Link
-                            href={`/courses/${p.courseId}`}
-                            className="font-medium hover:underline"
-                          >
-                            {p.courseCode}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{p.courseName}</TableCell>
-                        <TableCell>
-                          <Badge variant={p.isOptional ? "outline" : "default"}>
-                            {p.isOptional ? "Optional" : "Required"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="prerequisite-for">
-          <Card>
-            <CardHeader>
-              <CardTitle>Courses Requiring This Course</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {prerequisiteFor.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No courses require this as a prerequisite.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Course Code</TableHead>
-                      <TableHead>Course Name</TableHead>
-                      <TableHead>Requirement</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {prerequisiteFor.map((p) => (
-                      <TableRow key={p.courseId}>
-                        <TableCell>
-                          <Link
-                            href={`/courses/${p.courseId}`}
-                            className="font-medium hover:underline"
-                          >
-                            {p.courseCode}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{p.courseName}</TableCell>
-                        <TableCell>
-                          <Badge variant={p.isOptional ? "outline" : "default"}>
-                            {p.isOptional ? "Optional" : "Required"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      <section className="space-y-4">
+        <div className="flex items-end justify-between border-b border-[#ddd6c6] pb-2 dark:border-border">
+          <div>
+            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5c6b5c] dark:text-muted-foreground">
+              Course intakes
+            </h2>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Labels use <span className="font-medium text-foreground">14/25</span>{" "}
+              (same year) or{" "}
+              <span className="font-medium text-foreground">14/25-26</span>{" "}
+              (across years)
+            </p>
+          </div>
+          <span className="text-[11px] text-muted-foreground">
+            Tap a card to open
+          </span>
+        </div>
+        <CourseIntakesList courseId={courseId} intakes={intakeRows} />
+      </section>
     </div>
   );
 }

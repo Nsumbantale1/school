@@ -6,6 +6,7 @@ import {
   noticePdfFilename,
   type NoticePdfData,
 } from "./notice-pdf";
+import { resolveUnderRoot } from "./security-path";
 
 export interface NoticeDownloadRow {
   id: number;
@@ -19,6 +20,24 @@ export interface NoticeDownloadRow {
   authorName: string | null;
   attachmentPath: string | null;
   attachmentName: string | null;
+}
+
+const NOTICE_STORAGE = path.join(process.cwd(), "storage", "course-notices");
+const LEGACY_PUBLIC = path.join(process.cwd(), "public", "course-notices");
+
+/** Resolve notice attachment on disk (private storage, then legacy public). */
+export function resolveNoticeAttachmentPath(
+  attachmentPath: string
+): string | null {
+  if (!attachmentPath.startsWith("/course-notices/")) return null;
+  const filename = path.basename(attachmentPath);
+  if (filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+    return null;
+  }
+  return (
+    resolveUnderRoot(NOTICE_STORAGE, filename) ??
+    resolveUnderRoot(LEGACY_PUBLIC, filename)
+  );
 }
 
 export function subjectZipFilename(courseCode: string, subjectName: string): string {
@@ -69,15 +88,16 @@ export async function buildSubjectNoticesZip(
     const pdfBuffer = await buildNoticePdfBuffer(pdfData);
     zip.addFile(pdfName, pdfBuffer);
 
-    if (notice.attachmentPath?.startsWith("/course-notices/")) {
+    if (notice.attachmentPath) {
+      const filePath = resolveNoticeAttachmentPath(notice.attachmentPath);
+      if (!filePath) continue;
       try {
-        const filePath = path.join(process.cwd(), "public", notice.attachmentPath);
         const fileBuffer = await readFile(filePath);
         const attachmentName =
-          notice.attachmentName ??
-          path.basename(notice.attachmentPath);
+          notice.attachmentName ?? path.basename(notice.attachmentPath);
+        const safeName = path.basename(attachmentName).replace(/[^\w.\- ()]/g, "_");
         zip.addFile(
-          `attachments/${String(i + 1).padStart(2, "0")}-${attachmentName}`,
+          `attachments/${String(i + 1).padStart(2, "0")}-${safeName}`,
           fileBuffer
         );
       } catch {

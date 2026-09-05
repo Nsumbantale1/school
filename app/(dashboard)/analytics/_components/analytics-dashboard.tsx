@@ -37,6 +37,7 @@ import {
   SubjectAnalysisChart,
 } from "@/components/analytics-charts-extended";
 import { cn } from "@/lib/utils";
+import type { AnalyticsDashboardData } from "@/lib/utils/analytics-data";
 
 const ALL = "__all__";
 

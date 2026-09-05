@@ -1,12 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { db } from "@/lib/db";
-import { officialSignatures } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { officialSignatures, users } from "@/lib/db/schema";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
 import { BackButton } from "@/components/back-button";
 import { requireRole } from "@/lib/auth/guards";
 import { SignatureManager } from "./_components/signature-manager";
+import { OfficialContactEmails } from "./_components/official-contact-emails";
 
 async function getActiveOfficial(role: "chief_instructor" | "commandant") {
   const [row] = await db
@@ -26,9 +27,19 @@ async function getActiveOfficial(role: "chief_instructor" | "commandant") {
 export default async function CertificateSignaturesPage() {
   await requireRole(["admin"]);
 
-  const [chiefInstructor, commandant] = await Promise.all([
+  const [chiefInstructor, commandant, officials] = await Promise.all([
     getActiveOfficial("chief_instructor"),
     getActiveOfficial("commandant"),
+    db
+      .select({
+        id: users.id,
+        username: users.username,
+        name: users.name,
+        role: users.role,
+        email: users.email,
+      })
+      .from(users)
+      .where(inArray(users.role, ["chief_instructor", "commandant"])),
   ]);
 
   return (
@@ -44,6 +55,8 @@ export default async function CertificateSignaturesPage() {
         chiefInstructor={chiefInstructor}
         commandant={commandant}
       />
+
+      <OfficialContactEmails officials={officials} />
     </div>
   );
 }

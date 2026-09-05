@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type Column } from "@/components/data-table";
+import { formatIntakeLabel } from "@/lib/utils/intake-label";
+import { getCourseDisplayMeta } from "@/lib/utils/course-catalog";
 
 interface IntakeRow {
   intakeId: number;
@@ -22,19 +24,25 @@ const columns: Column<IntakeRow>[] = [
     key: "courseCode",
     header: "Course",
     cell: (row) => (
-      <div>
-        <span className="font-mono text-sm">{row.courseCode}</span>
-        <p className="text-sm text-muted-foreground truncate max-w-[200px]">
-          {row.courseName}
-        </p>
-      </div>
+      <span className="font-semibold tracking-wide">
+        {getCourseDisplayMeta(row.courseCode, row.courseName).label}
+      </span>
     ),
     sortable: true,
   },
   {
     key: "intakeNumber",
     header: "Intake",
-    cell: (row) => row.intakeNumber,
+    cell: (row) => (
+      <span className="font-semibold tracking-wide">
+        {formatIntakeLabel({
+          intakeNumber: row.intakeNumber,
+          startDate: row.startDate,
+          endDate: row.endDate,
+          year: row.year,
+        })}
+      </span>
+    ),
     sortable: true,
   },
   {
@@ -51,7 +59,7 @@ const columns: Column<IntakeRow>[] = [
   {
     key: "startDate",
     header: "Start Date",
-    cell: (row) => new Date(row.startDate).toLocaleDateString(),
+    cell: (row) => new Date(row.startDate).toLocaleDateString("en-GB"),
     sortable: true,
   },
   {
@@ -68,7 +76,8 @@ export function IntakesTable({ data }: { data: IntakeRow[] }) {
       columns={columns}
       data={data}
       searchKey="courseName"
-      searchPlaceholder="Search by course..."
+      searchKeys={["courseName", "courseCode", "intakeNumber", "commanderName"]}
+      searchPlaceholder="Search course, intake, or commander..."
       getRowKey={(row) => row.intakeId}
       onRowClick={(row) => router.push(`/intakes/${row.intakeId}`)}
     />

@@ -10,7 +10,7 @@ import {
   courses,
   results,
 } from "@/lib/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +31,10 @@ import { getSessionUser } from "@/lib/auth";
 import { canManageStudents } from "@/lib/auth/guards";
 import { decodeArmyNumber, studentPath } from "@/lib/utils";
 import { BackButton } from "@/components/back-button";
+import { PrintButton } from "@/components/print-button";
+import { FinalCourseReport } from "./_components/final-course-report";
+import { parseBccResults } from "@/lib/utils/bcc-report";
+import { getStudentPhotoPath } from "@/lib/utils/student-photo";
 
 interface PageProps {
   params: Promise<{ army_number: string }>;
@@ -51,6 +55,8 @@ export default async function StudentDetailPage({ params }: PageProps) {
     notFound();
   }
 
+  const photoPath = await getStudentPhotoPath(army_number);
+
   const studentEnrollments = await db
     .select({
       enrollmentId: enrollments.enrollmentId,
@@ -61,8 +67,11 @@ export default async function StudentDetailPage({ params }: PageProps) {
       averageMarks: enrollments.averageMarks,
       grade: enrollments.grade,
       position: enrollments.position,
+      intakeId: enrollments.intakeId,
       intakeNumber: courseIntakes.intakeNumber,
       year: courseIntakes.year,
+      startDate: courseIntakes.startDate,
+      endDate: courseIntakes.endDate,
       courseCode: courses.courseCode,
       courseName: courses.courseName,
     })
@@ -88,7 +97,7 @@ export default async function StudentDetailPage({ params }: PageProps) {
           })
           .from(results)
           .where(inArray(results.enrollmentId, enrollmentIds))
-          .orderBy(results.subjectName)
+          .orderBy(results.resultId)
       : [];
 
   const resultsByEnrollment = new Map<number, typeof allResults>();
@@ -98,12 +107,38 @@ export default async function StudentDetailPage({ params }: PageProps) {
     resultsByEnrollment.set(result.enrollmentId, list);
   }
 
+  const reportByEnrollment = new Map(
+    studentEnrollments.map((enrollment) => [
+      enrollment.enrollmentId,
+      parseBccResults(resultsByEnrollment.get(enrollment.enrollmentId) ?? []),
+    ])
+  );
+
+  const reportIntakeIds = [
+    ...new Set(
+      studentEnrollments
+        .filter((e) => reportByEnrollment.get(e.enrollmentId))
+        .map((e) => e.intakeId)
+    ),
+  ];
+  const classSizeByIntake = new Map<number, number>();
+  for (const intakeId of reportIntakeIds) {
+    const [row] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(enrollments)
+      .where(eq(enrollments.intakeId, intakeId));
+    classSizeByIntake.set(intakeId, Number(row?.n ?? 0));
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title={`${student.rank} ${student.fullName}`}
         description={`Army Number: ${student.armyNumber} · Current rank`}
       >
+        <PrintButton
+          title={`Final Course Report — ${student.rank} ${student.fullName}`}
+        />
         <Button variant="default" asChild>
           <Link href={studentPath(army_number, "/service-record")}>
             <FileText className="mr-2 h-4 w-4" />
@@ -121,12 +156,43 @@ export default async function StudentDetailPage({ params }: PageProps) {
         <BackButton fallbackHref="/students" />
       </PageHeader>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      {studentEnrollments.map((enrollment) => {
+        const report = reportByEnrollment.get(enrollment.enrollmentId);
+        if (!report) return null;
+        return (
+          <FinalCourseReport
+            key={`bcc-${enrollment.enrollmentId}`}
+            forceNo={student.armyNumber}
+            rank={enrollment.rankAtEnrollment}
+            fullName={student.fullName}
+            unit={enrollment.unitAtEnrollment ?? student.unit}
+            courseCode={enrollment.courseCode}
+            courseName={enrollment.courseName}
+            intakeNumber={enrollment.intakeNumber}
+            commenced={enrollment.startDate}
+            completed={enrollment.endDate}
+            position={enrollment.position}
+            classSize={classSizeByIntake.get(enrollment.intakeId) ?? null}
+            enrollmentHref={`/enrollments/${enrollment.enrollmentId}`}
+            photoPath={photoPath}
+            report={report}
+          />
+        );
+      })}
+
+      <div className="grid gap-6 md:grid-cols-2 print:hidden">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Personal Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {photoPath && (
+              <img
+                src={photoPath}
+                alt={student.fullName}
+                className="h-36 w-28 rounded-md object-cover border"
+              />
+            )}
             <div className="flex items-center gap-3">
               <User className="h-4 w-4 text-muted-foreground" />
               <div>
@@ -217,7 +283,7 @@ export default async function StudentDetailPage({ params }: PageProps) {
         </Card>
       </div>
 
-      <Card>
+      <Card className="print:hidden">
         <CardHeader>
           <CardTitle className="text-base">Course History</CardTitle>
         </CardHeader>
@@ -289,6 +355,7 @@ export default async function StudentDetailPage({ params }: PageProps) {
       </Card>
 
       {studentEnrollments.map((enrollment) => {
+        if (reportByEnrollment.get(enrollment.enrollmentId)) return null;
         const subjectResults =
           resultsByEnrollment.get(enrollment.enrollmentId) ?? [];
         return (

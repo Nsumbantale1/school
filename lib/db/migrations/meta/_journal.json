@@ -50,6 +50,20 @@
       "when": 1787339000000,
       "tag": "0006_subject_notices",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787340000000,
+      "tag": "0007_certificate_approval_workflow",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787341000000,
+      "tag": "0008_notifications_and_user_email",
+      "breakpoints": true
     }
   ]
 }

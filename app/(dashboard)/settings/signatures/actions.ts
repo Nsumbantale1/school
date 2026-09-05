@@ -7,10 +7,6 @@ import { db } from "@/lib/db";
 import { officialSignatures } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireRole } from "@/lib/auth/guards";
-import {
-  getCertificateData,
-  recordCertificateIssue,
-} from "@/lib/utils/certificate-data";
 
 const SIGNATURES_DIR = path.join(process.cwd(), "public", "signatures");
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -127,20 +123,4 @@ export async function updateOfficialDetails(formData: FormData) {
 
   revalidatePath("/settings/signatures");
   return { success: true };
-}
-
-export async function prepareCertificate(enrollmentId: number) {
-  const user = await requireRole(["admin", "instructor"]);
-
-  const result = await getCertificateData(enrollmentId);
-  if (!result.success) {
-    return result;
-  }
-
-  await recordCertificateIssue(result.data, user.userId);
-
-  return {
-    success: true as const,
-    data: JSON.parse(JSON.stringify(result.data)),
-  };
 }

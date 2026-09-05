@@ -7,6 +7,7 @@ import { BackButton } from "@/components/back-button";
 import { StudentForm } from "../../_components/student-form";
 import { requireRole } from "@/lib/auth/guards";
 import { decodeArmyNumber } from "@/lib/utils";
+import { getStudentPhotoPath } from "@/lib/utils/student-photo";
 
 interface PageProps {
   params: Promise<{ army_number: string }>;
@@ -27,6 +28,8 @@ export default async function EditStudentPage({ params }: PageProps) {
     notFound();
   }
 
+  const photoPath = await getStudentPhotoPath(army_number);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -46,6 +49,7 @@ export default async function EditStudentPage({ params }: PageProps) {
           phone: student.phone,
           email: student.email,
           notes: student.notes,
+          photoPath,
         }}
       />
     </div>

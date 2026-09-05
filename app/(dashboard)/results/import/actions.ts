@@ -399,3 +399,58 @@ export async function getImportTemplateData(intakeId: number) {
     roster,
   };
 }
+
+/** Import an official SOFA workbook (one file, many student report sheets). */
+export async function importOfficialSofaWorkbook(formData: FormData) {
+  // Admin-only: workbook import can create/overwrite students across courses.
+  const user = await requireAuth();
+  if (user.role !== "admin") {
+    return {
+      success: false as const,
+      error: "Unauthorized: only administrators can import official SOFA workbooks.",
+    };
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { success: false as const, error: "Please choose an Excel (.xlsx) workbook." };
+  }
+
+  const name = file.name.toLowerCase();
+  if (!name.endsWith(".xlsx") && !name.endsWith(".xls")) {
+    return { success: false as const, error: "Upload an official SOFA Excel workbook (.xlsx)." };
+  }
+
+  try {
+    const { importSofaWorkbookFromBuffer } = await import("@/lib/utils/sofa-import");
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const summary = await importSofaWorkbookFromBuffer(buffer, file.name, user.userId);
+
+    await auditCreate(user, "results", `sofa-import-${summary.intakeId}`, {
+      filename: summary.filename,
+      courseCode: summary.courseCode,
+      intakeNumber: summary.intakeNumber,
+      students: summary.students,
+      results: summary.results,
+    });
+
+    revalidatePath("/results");
+    revalidatePath("/students");
+    revalidatePath("/enrollments");
+    revalidatePath("/courses");
+    revalidatePath("/intakes");
+    revalidatePath(`/intakes/${summary.intakeId}`);
+    revalidatePath(`/courses/${summary.courseId}`);
+
+    return {
+      success: true as const,
+      ...summary,
+      message: `Imported ${summary.courseCode} intake ${summary.intakeNumber}: ${summary.students} students, ${summary.results} results.`,
+    };
+  } catch (error) {
+    return {
+      success: false as const,
+      error: (error as Error).message || "Failed to import workbook.",
+    };
+  }
+}

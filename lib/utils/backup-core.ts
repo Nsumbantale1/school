@@ -4,6 +4,10 @@ import path from "path";
 import { ZipArchive } from "archiver";
 import AdmZip from "adm-zip";
 import { PassThrough } from "stream";
+import {
+  resolveUnderRoot,
+  sanitizeBackupEntryName,
+} from "@/lib/utils/security-path";
 
 export const BACKUP_VERSION = 1;
 
@@ -23,7 +27,6 @@ export interface BackupBundle {
   manifest: BackupManifest;
   database: Record<string, Record<string, unknown>[]>;
   fileBuffers: Record<string, Buffer>;
-  envSnapshot?: string;
 }
 
 const RESTORE_ORDER = [
@@ -82,7 +85,7 @@ async function readPublicAssets(root: string): Promise<Record<string, Buffer>> {
   const entries = await readdir(publicDir);
 
   for (const file of entries) {
-    if (file === "signatures") continue;
+    if (file === "signatures" || file === "student-photos") continue;
     const src = path.join(publicDir, file);
     const info = await stat(src);
     if (info.isFile()) {
@@ -92,22 +95,26 @@ async function readPublicAssets(root: string): Promise<Record<string, Buffer>> {
   return files;
 }
 
-async function readSignatureFiles(root: string): Promise<Record<string, Buffer>> {
-  const sigDir = path.join(root, "public", "signatures");
+async function readPublicSubdir(
+  root: string,
+  subdir: string,
+  zipPrefix: string
+): Promise<Record<string, Buffer>> {
+  const dir = path.join(root, "public", subdir);
   const files: Record<string, Buffer> = {};
 
   try {
-    const entries = await readdir(sigDir);
+    const entries = await readdir(dir);
     for (const file of entries) {
       if (file.startsWith(".")) continue;
-      const src = path.join(sigDir, file);
+      const src = path.join(dir, file);
       const info = await stat(src);
       if (info.isFile()) {
-        files[`files/signatures/${file}`] = await readFile(src);
+        files[`${zipPrefix}/${file}`] = await readFile(src);
       }
     }
   } catch {
-    // no signatures folder
+    // folder may not exist yet
   }
 
   return files;
@@ -125,16 +132,25 @@ export async function createBackupBundle(root: string): Promise<BackupBundle> {
     totalRows += rows.length;
   }
 
-  let envSnapshot: string | undefined;
-  try {
-    envSnapshot = await readFile(path.join(root, ".env.local"), "utf-8");
-  } catch {
-    // optional
-  }
-
-  const sigFiles = await readSignatureFiles(root);
+  // Never embed .env / secrets in backup archives.
+  const sigFiles = await readPublicSubdir(root, "signatures", "files/signatures");
+  const photoFiles = await readPublicSubdir(
+    root,
+    "student-photos",
+    "files/student-photos"
+  );
+  const noticeFiles = await readStorageSubdir(
+    root,
+    "course-notices",
+    "files/storage/course-notices"
+  );
   const publicFiles = await readPublicAssets(root);
-  const fileBuffers = { ...sigFiles, ...publicFiles };
+  const fileBuffers = {
+    ...sigFiles,
+    ...photoFiles,
+    ...noticeFiles,
+    ...publicFiles,
+  };
 
   const manifest: BackupManifest = {
     version: BACKUP_VERSION,
@@ -154,7 +170,32 @@ export async function createBackupBundle(root: string): Promise<BackupBundle> {
     },
   };
 
-  return { manifest, database, fileBuffers, envSnapshot };
+  return { manifest, database, fileBuffers };
+}
+
+async function readStorageSubdir(
+  root: string,
+  subdir: string,
+  zipPrefix: string
+): Promise<Record<string, Buffer>> {
+  const dir = path.join(root, "storage", subdir);
+  const files: Record<string, Buffer> = {};
+
+  try {
+    const entries = await readdir(dir);
+    for (const file of entries) {
+      if (file.startsWith(".")) continue;
+      const src = path.join(dir, file);
+      const info = await stat(src);
+      if (info.isFile()) {
+        files[`${zipPrefix}/${file}`] = await readFile(src);
+      }
+    }
+  } catch {
+    // folder may not exist yet
+  }
+
+  return files;
 }
 
 export async function createBackupZip(root: string): Promise<Buffer> {
@@ -182,10 +223,6 @@ export async function createBackupZip(root: string): Promise<Buffer> {
     });
   }
 
-  if (bundle.envSnapshot) {
-    archive.append(bundle.envSnapshot, { name: "env.local.snapshot" });
-  }
-
   for (const [entryName, buffer] of Object.entries(bundle.fileBuffers)) {
     archive.append(buffer, { name: entryName });
   }
@@ -198,7 +235,6 @@ export function parseBackupZip(buffer: Buffer): {
   manifest: BackupManifest;
   database: Record<string, Record<string, unknown>[]>;
   files: Record<string, Buffer>;
-  envSnapshot?: string;
 } {
   const zip = new AdmZip(buffer);
   const entries = zip.getEntries();
@@ -206,11 +242,19 @@ export function parseBackupZip(buffer: Buffer): {
   let manifest: BackupManifest | null = null;
   const database: Record<string, Record<string, unknown>[]> = {};
   const files: Record<string, Buffer> = {};
-  let envSnapshot: string | undefined;
 
   for (const entry of entries) {
     if (entry.isDirectory) continue;
     const name = entry.entryName;
+
+    // Ignore secret snapshots from older backups (never restore into disk).
+    if (
+      name === "env.local.snapshot" ||
+      name.endsWith(".env") ||
+      name.endsWith(".env.local")
+    ) {
+      continue;
+    }
 
     if (name === "manifest.json") {
       manifest = JSON.parse(entry.getData().toString("utf-8")) as BackupManifest;
@@ -219,6 +263,9 @@ export function parseBackupZip(buffer: Buffer): {
 
     if (name.startsWith("database/") && name.endsWith(".json")) {
       const table = path.basename(name, ".json");
+      if (table.includes("..") || table.includes("/") || table.includes("\\")) {
+        continue;
+      }
       database[table] = JSON.parse(entry.getData().toString("utf-8")) as Record<
         string,
         unknown
@@ -226,13 +273,10 @@ export function parseBackupZip(buffer: Buffer): {
       continue;
     }
 
-    if (name === "env.local.snapshot") {
-      envSnapshot = entry.getData().toString("utf-8");
-      continue;
-    }
-
     if (name.startsWith("files/")) {
-      files[name] = entry.getData();
+      const safe = sanitizeBackupEntryName(name);
+      if (!safe) continue;
+      files[`files/${safe}`] = entry.getData();
     }
   }
 
@@ -240,7 +284,7 @@ export function parseBackupZip(buffer: Buffer): {
     throw new Error("Invalid backup file: manifest.json is missing.");
   }
 
-  return { manifest, database, files, envSnapshot };
+  return { manifest, database, files };
 }
 
 export async function restoreBackup(
@@ -248,7 +292,6 @@ export async function restoreBackup(
   backup: {
     database: Record<string, Record<string, unknown>[]>;
     files: Record<string, Buffer>;
-    envSnapshot?: string;
   }
 ) {
   const sql = getSql();
@@ -260,12 +303,21 @@ export async function restoreBackup(
   ];
 
   for (const table of ordered) {
+    // Whitelist table names to avoid injection via crafted backup JSON keys.
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) {
+      throw new Error(`Invalid table name in backup: ${table}`);
+    }
     const rows = backup.database[table] ?? [];
     await sql.query(`TRUNCATE TABLE "${table}" CASCADE`);
 
     if (rows.length === 0) continue;
 
     const columns = Object.keys(rows[0]);
+    for (const col of columns) {
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(col)) {
+        throw new Error(`Invalid column name in backup: ${col}`);
+      }
+    }
     const colList = columns.map((c) => `"${c}"`).join(", ");
 
     for (const row of rows) {
@@ -279,13 +331,22 @@ export async function restoreBackup(
   }
 
   for (const [entryName, buffer] of Object.entries(backup.files)) {
-    const dest = path.join(root, "public", entryName.replace(/^files\//, ""));
+    const safe = sanitizeBackupEntryName(entryName);
+    if (!safe) continue;
+
+    // storage/* stays under project storage/; everything else under public/
+    if (safe.startsWith("storage/")) {
+      const dest = resolveUnderRoot(root, safe);
+      if (!dest) continue;
+      await mkdir(path.dirname(dest), { recursive: true });
+      await writeFile(dest, buffer);
+      continue;
+    }
+
+    const dest = resolveUnderRoot(path.join(root, "public"), safe);
+    if (!dest) continue;
     await mkdir(path.dirname(dest), { recursive: true });
     await writeFile(dest, buffer);
-  }
-
-  if (backup.envSnapshot) {
-    await writeFile(path.join(root, ".env.local"), backup.envSnapshot, "utf-8");
   }
 }
 
@@ -308,16 +369,11 @@ export async function writeBackupToFolder(root: string, outDir: string) {
     );
   }
 
-  if (bundle.envSnapshot) {
-    await writeFile(
-      path.join(outDir, "env.local.snapshot"),
-      bundle.envSnapshot,
-      "utf-8"
-    );
-  }
-
   for (const [entryName, buffer] of Object.entries(bundle.fileBuffers)) {
-    const dest = path.join(outDir, entryName);
+    const safeRel = sanitizeBackupEntryName(entryName);
+    if (!safeRel) continue;
+    const dest = resolveUnderRoot(outDir, "files", ...safeRel.split("/"));
+    if (!dest) continue;
     await mkdir(path.dirname(dest), { recursive: true });
     await writeFile(dest, buffer);
   }
@@ -363,16 +419,6 @@ export async function restoreFromFolder(root: string, backupDir: string) {
 
   await collectFiles(path.join(backupDir, "files"), "files");
 
-  let envSnapshot: string | undefined;
-  try {
-    envSnapshot = await readFile(
-      path.join(backupDir, "env.local.snapshot"),
-      "utf-8"
-    );
-  } catch {
-    // optional
-  }
-
-  await restoreBackup(root, { database, files, envSnapshot });
+  await restoreBackup(root, { database, files });
   return manifest;
 }

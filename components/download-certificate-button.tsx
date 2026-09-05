@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Award, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { prepareCertificate } from "@/app/(dashboard)/settings/signatures/actions";
+import { prepareCertificate } from "@/app/(dashboard)/certificates/actions";
 import { downloadGraduationCertificatePdf } from "@/lib/utils/certificate-pdf";
 import type { CertificateData } from "@/lib/utils/certificate-data";
 import Link from "next/link";
@@ -27,7 +27,10 @@ export function DownloadCertificateButton({
     try {
       const result = await prepareCertificate(enrollmentId);
       if (!result.success) {
-        toast.error(result.error ?? "Cannot generate certificate.");
+        toast.error(
+          result.error ??
+            "Cannot generate certificate. It may need dual approval first."
+        );
         return;
       }
 

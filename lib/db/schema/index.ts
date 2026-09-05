@@ -9,6 +9,8 @@ export * from "./enrollments";
 export * from "./results";
 export * from "./documents";
 export * from "./certificates";
+export * from "./certificate-requests";
 export * from "./course-notices";
+export * from "./notifications";
 export * from "./audit-logs";
 export * from "./login-logs";

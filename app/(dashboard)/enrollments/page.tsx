@@ -26,6 +26,7 @@ export default async function EnrollmentsPage() {
       intakeNumber: courseIntakes.intakeNumber,
       year: courseIntakes.year,
       status: enrollments.status,
+      unit: students.unit,
       averageMarks: enrollments.averageMarks,
       grade: enrollments.grade,
       position: enrollments.position,
@@ -38,7 +39,10 @@ export default async function EnrollmentsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Enrollments" description="Student course enrollments">
+      <PageHeader
+        title="Enrollments"
+        description="Search students by score, unit, course, grade, or name"
+      >
         <PrintButton title="Enrollments — School of Field Artillery" />
         {user && canManageEnrollments(user.role) && (
           <Button asChild>

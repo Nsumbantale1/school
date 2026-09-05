@@ -22,6 +22,7 @@ import { NoticeUploadForm } from "../_components/notice-upload-form";
 import { NoticesList } from "../_components/notices-list";
 import { SubjectDownloadButton } from "../_components/subject-download-button";
 import { getSessionUser } from "@/lib/auth";
+import { assertCanAccessCourse } from "@/lib/auth/permissions";
 
 export default async function SubjectNoticesPage({
   params,
@@ -32,7 +33,7 @@ export default async function SubjectNoticesPage({
   const courseId = parseInt(course_id);
   const subjectId = parseInt(subject_id);
   const user = await getSessionUser();
-  const canManage = user?.role === "admin" || user?.role === "instructor";
+  const canManage = !!user && assertCanAccessCourse(user, courseId);
 
   const subject = await db.query.courseSubjects.findFirst({
     where: and(

@@ -27,6 +27,7 @@ export default async function ResultsPage() {
       resultId: results.resultId,
       studentArmyNumber: students.armyNumber,
       fullName: students.fullName,
+      unit: students.unit,
       rank: enrollments.rankAtEnrollment,
       courseCode: courses.courseCode,
       intakeNumber: courseIntakes.intakeNumber,

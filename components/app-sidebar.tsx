@@ -10,7 +10,6 @@ import {
   Calendar,
   ClipboardList,
   Award,
-  LogOut,
   FileBarChart,
   TrendingUp,
   ArrowLeftRight,
@@ -33,15 +32,16 @@ import {
   SidebarMenuItem,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { logoutAction } from "@/app/(dashboard)/actions";
+import { LogoutButton } from "@/components/logout-button";
 
 interface NavItem {
   title: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
+  /** If set, item visible only for these roles */
+  roles?: string[];
 }
 
 interface NavGroup {
@@ -65,6 +65,12 @@ const navGroups: NavGroup[] = [
       { title: "Intakes", href: "/intakes", icon: Calendar },
       { title: "Enrollments", href: "/enrollments", icon: ClipboardList },
       { title: "Results", href: "/results", icon: Award },
+      {
+        title: "Certificates",
+        href: "/certificates",
+        icon: FileText,
+        roles: ["admin", "chief_instructor", "commandant"],
+      },
     ],
   },
   {
@@ -83,7 +89,7 @@ const navGroups: NavGroup[] = [
     label: "Admin",
     items: [
       { title: "Users", href: "/users", icon: UserCog, adminOnly: true },
-      { title: "Audit Logs", href: "/audit-logs", icon: History, adminOnly: true },
+      { title: "Activity Logs", href: "/audit-logs", icon: History, adminOnly: true },
       { title: "Documents", href: "/documents", icon: FileText, adminOnly: true },
       {
         title: "Cert. Signatures",
@@ -128,12 +134,21 @@ export function AppSidebar({ user }: AppSidebarProps) {
       </SidebarHeader>
       <SidebarContent>
         {navGroups.map((group) => {
-          // Filter out admin-only items for non-admin users
-          const visibleItems = group.items.filter(
-            (item) => !item.adminOnly || isAdmin
-          );
+          const visibleItems = group.items.filter((item) => {
+            if (item.roles) return item.roles.includes(user.role);
+            if (item.adminOnly) return isAdmin;
+            // Officials mainly use Certificates — hide heavy ops menus
+            if (
+              user.role === "chief_instructor" ||
+              user.role === "commandant"
+            ) {
+              return (
+                item.href === "/dashboard" || item.href === "/certificates"
+              );
+            }
+            return true;
+          });
 
-          // Don't render empty groups
           if (visibleItems.length === 0) return null;
 
           return (
@@ -169,23 +184,17 @@ export function AppSidebar({ user }: AppSidebarProps) {
           );
         })}
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">{user.name}</p>
-            <p className="text-xs text-sidebar-foreground/70 capitalize">
+      <SidebarFooter className="border-t border-sidebar-border p-3">
+        <div className="flex items-center gap-2 px-1">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{user.name}</p>
+            <p className="truncate text-xs text-sidebar-foreground/70 capitalize">
               {user.role.replace(/_/g, " ")}
             </p>
           </div>
-          <div className="flex items-center gap-1">
-            <ThemeToggle />
-            <form action={logoutAction}>
-              <Button variant="ghost" size="icon" type="submit">
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </form>
-          </div>
+          <ThemeToggle />
         </div>
+        <LogoutButton className="mt-2 w-full justify-start" />
       </SidebarFooter>
     </Sidebar>
   );

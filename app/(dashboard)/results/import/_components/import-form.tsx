@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   getImportTemplateData,
   importResultsFromCsv,
+  importOfficialSofaWorkbook,
 } from "../actions";
 import {
   downloadExcel,
@@ -33,9 +34,11 @@ interface IntakeOption {
 export function ImportResultsForm({
   intakes,
   defaultIntakeId,
+  canImportOfficial = false,
 }: {
   intakes: IntakeOption[];
   defaultIntakeId?: number;
+  canImportOfficial?: boolean;
 }) {
   const router = useRouter();
   const [intakeId, setIntakeId] = React.useState<string>(
@@ -46,6 +49,8 @@ export function ImportResultsForm({
   const [updateExisting, setUpdateExisting] = React.useState(true);
   const [loadingTemplate, setLoadingTemplate] = React.useState(false);
   const [importing, setImporting] = React.useState(false);
+  const [importingOfficial, setImportingOfficial] = React.useState(false);
+  const [officialFiles, setOfficialFiles] = React.useState<File[]>([]);
   const [message, setMessage] = React.useState<string | null>(null);
   const [errors, setErrors] = React.useState<string[]>([]);
 
@@ -185,13 +190,97 @@ export function ImportResultsForm({
     }
   };
 
+  const handleOfficialImport = async () => {
+    if (officialFiles.length === 0) {
+      setMessage("Choose one or more official SOFA Excel workbooks.");
+      return;
+    }
+
+    setImportingOfficial(true);
+    setMessage(null);
+    setErrors([]);
+    const lines: string[] = [];
+    const fail: string[] = [];
+
+    try {
+      for (const file of officialFiles) {
+        const formData = new FormData();
+        formData.set("file", file);
+        const result = await importOfficialSofaWorkbook(formData);
+        if (result.success) {
+          lines.push(result.message || file.name);
+        } else {
+          fail.push(`${file.name}: ${result.error || "failed"}`);
+        }
+      }
+
+      setMessage(
+        lines.length
+          ? lines.join(" ")
+          : fail[0] || "Official workbook import finished."
+      );
+      setErrors(fail);
+      if (lines.length) router.refresh();
+    } finally {
+      setImportingOfficial(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-3xl">
+      {canImportOfficial && (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Upload className="h-4 w-4" />
+            Official SOFA workbook (recommended)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Upload the original course Excel files (MSURURU / RIPOTI YA MAFUNZO).
+            The system creates the course, intake, students, enrollments, and
+            subject marks automatically.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="sofa-workbook">Excel workbooks (.xlsx)</Label>
+            <input
+              id="sofa-workbook"
+              type="file"
+              multiple
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={(e) =>
+                setOfficialFiles(Array.from(e.target.files ?? []))
+              }
+              className="block w-full text-sm file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
+            />
+            {officialFiles.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Selected: {officialFiles.map((f) => f.name).join(", ")}
+              </p>
+            )}
+          </div>
+          <Button
+            type="button"
+            onClick={handleOfficialImport}
+            disabled={officialFiles.length === 0 || importingOfficial}
+          >
+            {importingOfficial ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="mr-2 h-4 w-4" />
+            )}
+            Import official workbooks
+          </Button>
+        </CardContent>
+      </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <FileSpreadsheet className="h-4 w-4" />
-            Step 1 — Choose intake & download template
+            Or use a simple marks template
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">

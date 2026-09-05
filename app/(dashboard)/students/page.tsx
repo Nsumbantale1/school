@@ -16,6 +16,7 @@ import { PrintButton } from "@/components/print-button";
 import { Plus } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { canManageStudents } from "@/lib/auth/guards";
+import { getStudentPhotoPathMap } from "@/lib/utils/student-photo";
 
 export default async function StudentsPage() {
   const user = await getSessionUser();
@@ -76,8 +77,11 @@ export default async function StudentsPage() {
     }
   }
 
+  const photoMap = await getStudentPhotoPathMap(data.map((s) => s.armyNumber));
+
   const tableData = data.map((s) => ({
     ...s,
+    photoPath: photoMap.get(s.armyNumber) ?? null,
     enrollments: enrollmentsByStudent.get(s.armyNumber) ?? [],
   }));
   const courseList = Array.from(courseMap.values()).sort((a, b) =>

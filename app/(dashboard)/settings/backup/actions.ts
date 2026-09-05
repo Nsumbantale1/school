@@ -38,7 +38,6 @@ export async function restoreFromBackupFile(formData: FormData) {
   await requireRole(["admin"]);
 
   const file = formData.get("backup") as File | null;
-  const includeEnv = formData.get("includeEnv") === "true";
 
   if (!file || file.size === 0) {
     return { success: false, error: "Please select a backup .zip file." };
@@ -62,7 +61,6 @@ export async function restoreFromBackupFile(formData: FormData) {
     await restoreBackup(process.cwd(), {
       database: parsed.database,
       files: parsed.files,
-      envSnapshot: includeEnv ? parsed.envSnapshot : undefined,
     });
 
     revalidatePath("/", "layout");

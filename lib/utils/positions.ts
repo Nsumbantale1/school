@@ -1,7 +1,9 @@
 import { db } from "../db";
 import { enrollments, results } from "../db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { calculateGrade } from "./grades";
+import { parseBccRemarks, tpdfGradeToSystem } from "./bcc-report";
+import type { Grade } from "../db/schema";
 
 /**
  * Recalculate positions for all students in an intake based on their average marks.
@@ -27,6 +29,7 @@ export async function recalculatePositions(intakeId: number): Promise<void> {
     totalMaxMarks: number;
     averagePercentage: number;
     resultCount: number;
+    bccGrade: Grade | null;
   }> = [];
 
   for (const enrollment of intakeEnrollments) {
@@ -34,6 +37,7 @@ export async function recalculatePositions(intakeId: number): Promise<void> {
       .select({
         marksObtained: results.marksObtained,
         maxMarks: results.maxMarks,
+        remarks: results.remarks,
       })
       .from(results)
       .where(eq(results.enrollmentId, enrollment.enrollmentId));
@@ -45,6 +49,7 @@ export async function recalculatePositions(intakeId: number): Promise<void> {
         totalMaxMarks: 0,
         averagePercentage: 0,
         resultCount: 0,
+        bccGrade: null,
       });
       continue;
     }
@@ -66,6 +71,7 @@ export async function recalculatePositions(intakeId: number): Promise<void> {
       totalMaxMarks,
       averagePercentage,
       resultCount: enrollmentResults.length,
+      bccGrade: sofaGradeFromResults(enrollmentResults),
     });
   }
 
@@ -91,9 +97,10 @@ export async function recalculatePositions(intakeId: number): Promise<void> {
     const position = score.resultCount > 0 ? currentPosition : null;
 
     // Calculate overall grade based on average
-    const grade =
+    const grade: Grade | null =
       score.resultCount > 0
-        ? calculateGrade(score.totalMarks, score.totalMaxMarks)
+        ? score.bccGrade ??
+          calculateGrade(score.totalMarks, score.totalMaxMarks)
         : null;
 
     // Update enrollment with calculated values
@@ -123,6 +130,7 @@ export async function recalculateEnrollmentMarks(
     .select({
       marksObtained: results.marksObtained,
       maxMarks: results.maxMarks,
+      remarks: results.remarks,
     })
     .from(results)
     .where(eq(results.enrollmentId, enrollmentId));
@@ -151,7 +159,10 @@ export async function recalculateEnrollmentMarks(
   );
   const averagePercentage =
     totalMaxMarks > 0 ? (totalMarks / totalMaxMarks) * 100 : 0;
-  const grade = calculateGrade(totalMarks, totalMaxMarks);
+
+  const grade =
+    sofaGradeFromResults(enrollmentResults) ??
+    calculateGrade(totalMarks, totalMaxMarks);
 
   await db
     .update(enrollments)
@@ -179,4 +190,14 @@ export async function getIntakeIdForEnrollment(
     .limit(1);
 
   return result[0]?.intakeId ?? null;
+}
+
+function sofaGradeFromResults(
+  rows: Array<{ remarks: string | null }>
+): Grade | null {
+  for (const row of rows) {
+    const meta = parseBccRemarks(row.remarks);
+    if (meta?.courseGrade) return tpdfGradeToSystem(meta.courseGrade);
+  }
+  return null;
 }

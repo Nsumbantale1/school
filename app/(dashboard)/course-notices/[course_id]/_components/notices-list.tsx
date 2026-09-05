@@ -50,6 +50,8 @@ interface NoticeRow {
   expiresAt: string | null;
   createdAt: string;
   authorName: string | null;
+  subjectId?: number;
+  subjectName?: string | null;
 }
 
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -74,16 +76,21 @@ export function NoticesList({
 }: {
   notices: NoticeRow[];
   courseId: number;
-  subjectId: number;
+  subjectId?: number;
   canManage: boolean;
 }) {
   const [deleting, setDeleting] = useState<number | null>(null);
   const [downloading, setDownloading] = useState<number | null>(null);
 
-  async function handleDelete(id: number) {
+  async function handleDelete(id: number, noticeSubjectId?: number) {
+    const sid = noticeSubjectId ?? subjectId;
+    if (!sid) {
+      toast.error("Missing subject for this notice.");
+      return;
+    }
     if (!confirm("Delete this notice?")) return;
     setDeleting(id);
-    const result = await deleteCourseNotice(id, courseId, subjectId);
+    const result = await deleteCourseNotice(id, courseId, sid);
     setDeleting(null);
     if (result.success) toast.success("Notice deleted.");
     else toast.error("Failed to delete notice.");
@@ -156,6 +163,11 @@ export function NoticesList({
                       <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0" />
                     )}
                     <h3 className="font-semibold">{n.title}</h3>
+                    {n.subjectName && (
+                      <Badge variant="secondary" className="text-xs">
+                        {n.subjectName}
+                      </Badge>
+                    )}
                     <Badge variant="outline" className="text-xs capitalize gap-1">
                       <Icon className="h-3 w-3" />
                       {n.category}
@@ -193,8 +205,7 @@ export function NoticesList({
                     </Button>
                     {n.attachmentPath && (
                       <a
-                        href={n.attachmentPath}
-                        download={n.attachmentName ?? true}
+                        href={`/api/course-notices/notices/${n.id}/attachment`}
                         className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
                       >
                         <Paperclip className="h-3.5 w-3.5" />
@@ -215,7 +226,7 @@ export function NoticesList({
                     size="icon"
                     className="shrink-0 text-destructive hover:text-destructive"
                     disabled={deleting === n.id}
-                    onClick={() => handleDelete(n.id)}
+                    onClick={() => handleDelete(n.id, n.subjectId)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
