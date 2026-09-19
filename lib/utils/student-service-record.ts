@@ -132,21 +132,37 @@ export async function getStudentServiceRecord(
 
   const enrollmentIds = enrollmentRows.map((e) => e.enrollmentId);
 
-  const allResults =
-    enrollmentIds.length > 0
-      ? await db
-          .select({
-            enrollmentId: results.enrollmentId,
-            subjectName: results.subjectName,
-            marksObtained: results.marksObtained,
-            maxMarks: results.maxMarks,
-            grade: results.grade,
-            remarks: results.remarks,
-          })
-          .from(results)
-          .where(inArray(results.enrollmentId, enrollmentIds))
-          .orderBy(results.subjectName)
-      : [];
+  let allResults: Array<{
+    enrollmentId: number;
+    subjectName: string;
+    marksObtained: string;
+    maxMarks: string;
+    grade: string | null;
+    remarks: string | null;
+  }> = [];
+
+  if (enrollmentIds.length > 0) {
+    try {
+      allResults = await db
+        .select({
+          enrollmentId: results.enrollmentId,
+          subjectName: results.subjectName,
+          marksObtained: results.marksObtained,
+          maxMarks: results.maxMarks,
+          grade: results.grade,
+          remarks: results.remarks,
+        })
+        .from(results)
+        .where(inArray(results.enrollmentId, enrollmentIds))
+        .orderBy(results.subjectName);
+    } catch (error) {
+      console.error("Failed to load service record subject results:", {
+        armyNumber,
+        enrollmentIds,
+        error,
+      });
+    }
+  }
 
   const resultsByEnrollment = new Map<number, ServiceRecordSubject[]>();
   for (const r of allResults) {
@@ -212,7 +228,9 @@ export async function getStudentServiceRecord(
 
   const passed = enrollmentsData.filter(
     (e) =>
-      e.status === "completed" && e.grade && e.grade !== "F"
+      e.status === "completed" &&
+      e.grade &&
+      (e.grade === "A" || e.grade === "B" || e.grade === "C")
   ).length;
 
   const generatedAt = new Date();

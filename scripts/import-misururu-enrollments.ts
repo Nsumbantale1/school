@@ -237,7 +237,7 @@ async function ensureCourse(meta: RollMeta): Promise<number> {
       courseName: meta.courseName,
       description: `${meta.courseName}. Created from MISURURU enrollment list.`,
       durationWeeks: meta.durationWeeks,
-      passingMark: 50,
+      passingMark: 55,
       isActive: true,
     })
     .returning({ courseId: courses.courseId });

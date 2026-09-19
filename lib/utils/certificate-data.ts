@@ -8,6 +8,8 @@ import {
   officialSignatures,
 } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { isPassingGrade } from "@/lib/utils/grades";
+import type { Grade } from "@/lib/db/schema";
 
 export interface CertificateSignatory {
   fullName: string | null;
@@ -49,7 +51,7 @@ export function isEligibleForCertificate(
     };
   }
 
-  if (status === "failed" || grade === "F") {
+  if (status === "failed" || grade === "F" || grade === "D") {
     return {
       eligible: false,
       reason: "Student did not pass the course (failed).",
@@ -60,7 +62,7 @@ export function isEligibleForCertificate(
     // Allow completed primarily; also allow if they have passing grade while still enrolled (edge case)
   }
 
-  if (grade && grade !== "F") {
+  if (grade && isPassingGrade(grade as Grade)) {
     return { eligible: true };
   }
 

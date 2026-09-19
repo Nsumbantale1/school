@@ -117,14 +117,14 @@ async function seed() {
   // --- Courses (8) ---
   console.log("3. Seeding courses...");
   const courseData = [
-    { courseCode: "OBC-01", courseName: "Officer Basic Course", durationWeeks: 24, passingMark: 50, description: "Basic artillery officer training covering gunnery, tactics, and leadership" },
-    { courseCode: "OAC-01", courseName: "Officer Advanced Course", durationWeeks: 36, passingMark: 50, description: "Advanced artillery operations and planning for senior officers" },
-    { courseCode: "FDC-01", courseName: "Fire Direction Center Course", durationWeeks: 12, passingMark: 50, description: "Specialized training in fire direction center operations" },
-    { courseCode: "FOO-01", courseName: "Forward Observer Course", durationWeeks: 12, passingMark: 50, description: "Training for forward observation and target acquisition" },
-    { courseCode: "EBC-01", courseName: "Enlisted Basic Course", durationWeeks: 16, passingMark: 50, description: "Basic artillery training for enlisted soldiers" },
-    { courseCode: "EAC-01", courseName: "Enlisted Advanced Course", durationWeeks: 24, passingMark: 50, description: "Advanced NCO training for artillery operations" },
-    { courseCode: "GMC-01", courseName: "Gun Maintenance Course", durationWeeks: 12, passingMark: 50, description: "Equipment maintenance and repair for artillery systems" },
-    { courseCode: "SCC-01", courseName: "Signal Communication Course", durationWeeks: 8, passingMark: 50, description: "Communication systems operation for artillery units" },
+    { courseCode: "OBC-01", courseName: "Officer Basic Course", durationWeeks: 24, passingMark: 55, description: "Basic artillery officer training covering gunnery, tactics, and leadership" },
+    { courseCode: "OAC-01", courseName: "Officer Advanced Course", durationWeeks: 36, passingMark: 55, description: "Advanced artillery operations and planning for senior officers" },
+    { courseCode: "FDC-01", courseName: "Fire Direction Center Course", durationWeeks: 12, passingMark: 55, description: "Specialized training in fire direction center operations" },
+    { courseCode: "FOO-01", courseName: "Forward Observer Course", durationWeeks: 12, passingMark: 55, description: "Training for forward observation and target acquisition" },
+    { courseCode: "EBC-01", courseName: "Enlisted Basic Course", durationWeeks: 16, passingMark: 55, description: "Basic artillery training for enlisted soldiers" },
+    { courseCode: "EAC-01", courseName: "Enlisted Advanced Course", durationWeeks: 24, passingMark: 55, description: "Advanced NCO training for artillery operations" },
+    { courseCode: "GMC-01", courseName: "Gun Maintenance Course", durationWeeks: 12, passingMark: 55, description: "Equipment maintenance and repair for artillery systems" },
+    { courseCode: "SCC-01", courseName: "Signal Communication Course", durationWeeks: 8, passingMark: 55, description: "Communication systems operation for artillery units" },
   ];
   for (const c of courseData) {
     await db.insert(courses).values(c).onConflictDoNothing();
@@ -317,7 +317,7 @@ async function seed() {
         subjectName: subjects[i],
         marksObtained: student.scores[i].toString(),
         maxMarks: "100",
-        remarks: student.scores[i] < 50 ? "Needs improvement" : undefined,
+        remarks: student.scores[i] < 55 ? "Needs improvement" : undefined,
       });
     }
   }

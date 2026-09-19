@@ -23,6 +23,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { ExportButtons } from "@/components/export-buttons";
 import Link from "next/link";
 import { studentPath } from "@/lib/utils";
+import { displayName } from "@/lib/utils/display-name";
 
 interface PageProps {
   searchParams: Promise<{ courseId?: string; intakeId?: string; year?: string }>;
@@ -133,18 +134,19 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
   }
 
   const exportColumns = [
-    { key: "position", header: "Position" },
     { key: "armyNumber", header: "Army Number" },
     { key: "rank", header: "Rank" },
-    { key: "fullName", header: "Full Name" },
+    { key: "fullName", header: "Name" },
     { key: "unit", header: "Unit" },
+    { key: "status", header: "Status" },
     { key: "averageMarks", header: "Average (%)" },
     { key: "grade", header: "Grade" },
-    { key: "status", header: "Status" },
+    { key: "position", header: "Position" },
   ];
 
   const exportData = reportData.map((r) => ({
     ...r,
+    fullName: displayName(r.fullName),
     averageMarks: r.averageMarks
       ? parseFloat(r.averageMarks).toFixed(1)
       : "N/A",
@@ -258,46 +260,68 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full border-collapse">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-3 px-2 font-medium">Position</th>
-                      <th className="text-left py-3 px-2 font-medium">Army No.</th>
-                      <th className="text-left py-3 px-2 font-medium">Student</th>
-                      <th className="text-left py-3 px-2 font-medium">Unit</th>
-                      <th className="text-left py-3 px-2 font-medium">Average</th>
-                      <th className="text-left py-3 px-2 font-medium">Grade</th>
-                      <th className="text-left py-3 px-2 font-medium">Status</th>
+                      <th className="text-left py-3 px-4 font-medium whitespace-nowrap">
+                        Army Number
+                      </th>
+                      <th className="text-left py-3 pl-4 pr-8 font-medium whitespace-nowrap min-w-[5.5rem]">
+                        Rank
+                      </th>
+                      <th className="text-left py-3 pl-8 pr-4 font-medium min-w-[12rem]">
+                        Name
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium whitespace-nowrap">
+                        Unit
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium whitespace-nowrap">
+                        Status
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium whitespace-nowrap">
+                        Average
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium whitespace-nowrap">
+                        Grade
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium whitespace-nowrap">
+                        Position
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {reportData.map((row) => (
                       <tr key={row.enrollmentId} className="border-b">
-                        <td className="py-3 px-2">
-                          <PositionBadge position={row.position} />
-                        </td>
-                        <td className="py-3 px-2 font-mono text-sm">
+                        <td className="py-3 px-4 font-mono text-sm whitespace-nowrap">
                           {row.armyNumber}
                         </td>
-                        <td className="py-3 px-2">
+                        <td className="py-3 pl-4 pr-8 font-medium whitespace-nowrap">
+                          {row.rank}
+                        </td>
+                        <td className="py-3 pl-8 pr-4">
                           <Link
                             href={studentPath(row.armyNumber)}
-                            className="hover:underline"
+                            className="hover:underline tracking-wide"
                           >
-                            {row.rank} {row.fullName}
+                            {displayName(row.fullName)}
                           </Link>
                         </td>
-                        <td className="py-3 px-2">{row.unit ?? "—"}</td>
-                        <td className="py-3 px-2">
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {row.unit ?? "—"}
+                        </td>
+                        <td className="py-3 px-4">
+                          <StatusBadge status={row.status} />
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
                           {row.averageMarks
                             ? `${parseFloat(row.averageMarks).toFixed(1)}%`
                             : "—"}
                         </td>
-                        <td className="py-3 px-2">
+                        <td className="py-3 px-4">
                           <GradeBadge grade={row.grade as any} />
                         </td>
-                        <td className="py-3 px-2">
-                          <StatusBadge status={row.status} />
+                        <td className="py-3 px-4">
+                          <PositionBadge position={row.position} />
                         </td>
                       </tr>
                     ))}

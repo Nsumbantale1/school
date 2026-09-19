@@ -17,6 +17,7 @@ import {
   formatBccGrade,
   type BccParsedReport,
 } from "@/lib/utils/bcc-report";
+import { displayName } from "@/lib/utils/display-name";
 
 export type FinalCourseReportProps = {
   forceNo: string;
@@ -32,6 +33,8 @@ export type FinalCourseReportProps = {
   classSize?: number | null;
   enrollmentHref?: string;
   photoPath?: string | null;
+  /** Enrollment average % (preferred over summed report.overall). */
+  averageMarks?: string | number | null;
   report: BccParsedReport;
 };
 
@@ -60,10 +63,19 @@ export function FinalCourseReport({
   classSize,
   enrollmentHref,
   photoPath,
+  averageMarks,
   report,
 }: FinalCourseReportProps) {
   const gradeText = formatBccGrade(report.tpdfGrade, report.tpdfRemarks);
   const isGood = report.tpdfGrade.toUpperCase() === "C";
+  const avgFromEnrollment =
+    averageMarks != null && String(averageMarks).trim() !== ""
+      ? parseFloat(String(averageMarks))
+      : null;
+  const averagePct =
+    avgFromEnrollment != null && Number.isFinite(avgFromEnrollment)
+      ? avgFromEnrollment
+      : report.overall;
 
   return (
     <div className="final-course-report space-y-6 print:space-y-4">
@@ -95,9 +107,9 @@ export function FinalCourseReport({
       <div className="grid gap-3 sm:grid-cols-4">
         <div className="rounded-lg border p-4 text-center">
           <p className="text-2xl font-semibold tabular-nums">
-            {fmtScore(report.overall)}%
+            {fmtScore(averagePct)}%
           </p>
-          <p className="text-xs text-muted-foreground mt-1">Total marks</p>
+          <p className="text-xs text-muted-foreground mt-1">Average marks</p>
         </div>
         <div className="rounded-lg border p-4 text-center">
           <p className="text-2xl font-semibold">{gradeText}</p>
@@ -149,7 +161,9 @@ export function FinalCourseReport({
             </div>
             <div className="sm:col-span-2">
               <dt className="text-muted-foreground">Full name</dt>
-              <dd className="font-medium">{fullName}</dd>
+              <dd className="font-medium tracking-wide">
+                {displayName(fullName)}
+              </dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Unit</dt>
@@ -294,9 +308,9 @@ export function FinalCourseReport({
         <CardContent>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-sm text-muted-foreground">Total marks (%)</p>
+              <p className="text-sm text-muted-foreground">Average marks (%)</p>
               <p className="text-3xl font-semibold tabular-nums">
-                {fmtScore(report.overall)}%
+                {fmtScore(averagePct)}%
               </p>
             </div>
             <div>

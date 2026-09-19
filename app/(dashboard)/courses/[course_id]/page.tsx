@@ -12,9 +12,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, Clock, Target, Plus, UserPlus } from "lucide-react";
 import { BackButton } from "@/components/back-button";
 import { getSessionUser } from "@/lib/auth";
-import { canManageEnrollments, canManageCourses } from "@/lib/auth/guards";
+import {
+  canManageEnrollments,
+  canManageCourses,
+  canManageResults,
+} from "@/lib/auth/guards";
 import { getCourseDisplayMeta } from "@/lib/utils/course-catalog";
+import { formatIntakeLabel } from "@/lib/utils/intake-label";
 import { CourseIntakesList } from "./_components/course-intakes-list";
+import { ImportResultsForm } from "@/app/(dashboard)/results/import/_components/import-form";
 
 const courseDisplay = Barlow_Condensed({
   subsets: ["latin"],
@@ -34,6 +40,10 @@ export default async function CourseDetailPage({
   const user = await getSessionUser();
   const canEnroll = !!user && canManageEnrollments(user.role);
   const canEdit = !!user && canManageCourses(user.role);
+  const canImport =
+    !!user &&
+    canManageResults(user.role) &&
+    (user.role === "admin" || user.assignedCourseId === courseId);
 
   const [course, intakes] = await Promise.all([
     db.query.courses.findFirst({
@@ -53,6 +63,7 @@ export default async function CourseDetailPage({
         intakeNumber: courseIntakes.intakeNumber,
         year: courseIntakes.year,
         commanderName: courseIntakes.commanderName,
+        coordinatorName: courseIntakes.coordinatorName,
         startDate: courseIntakes.startDate,
         endDate: courseIntakes.endDate,
         isActive: courseIntakes.isActive,
@@ -66,6 +77,7 @@ export default async function CourseDetailPage({
         courseIntakes.intakeNumber,
         courseIntakes.year,
         courseIntakes.commanderName,
+        courseIntakes.coordinatorName,
         courseIntakes.startDate,
         courseIntakes.endDate,
         courseIntakes.isActive
@@ -82,6 +94,16 @@ export default async function CourseDetailPage({
   }));
   const defaultIntake =
     intakeRows.find((i) => i.isActive) ?? intakeRows[0] ?? null;
+
+  const importIntakes = intakeRows.map((i) => ({
+    intakeId: i.intakeId,
+    label: `${formatIntakeLabel({
+      intakeNumber: i.intakeNumber,
+      startDate: i.startDate,
+      endDate: i.endDate,
+      year: i.year,
+    })}${i.isActive ? "" : " [inactive]"} · ${i.studentCount} students`,
+  }));
 
   return (
     <div className={`space-y-6 ${courseDisplay.variable}`}>
@@ -173,6 +195,24 @@ export default async function CourseDetailPage({
         </div>
         <CourseIntakesList courseId={courseId} intakes={intakeRows} />
       </section>
+
+      {canImport && (
+        <section className="space-y-2">
+          <div className="border-b border-[#ddd6c6] pb-2 dark:border-border">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5c6b5c] dark:text-muted-foreground">
+              Import results
+            </h2>
+          </div>
+          <ImportResultsForm
+            intakes={importIntakes}
+            defaultIntakeId={defaultIntake?.intakeId}
+            canImportOfficial={user?.role === "admin"}
+            embedded
+            courseLabel={display.label}
+            newIntakeHref={`/intakes/new?courseId=${courseId}`}
+          />
+        </section>
+      )}
     </div>
   );
 }

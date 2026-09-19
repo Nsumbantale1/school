@@ -204,7 +204,7 @@ async function main() {
         description:
           "Battery Commander Course (BCC). Final mark = Theory & Practical 40% + Field Exercises 60%.",
         durationWeeks: 16,
-        passingMark: 50,
+        passingMark: 55,
         isActive: true,
       })
       .returning({ courseId: courses.courseId });

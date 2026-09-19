@@ -26,6 +26,7 @@ import {
   User,
 } from "lucide-react";
 import type { StudentServiceRecord } from "@/lib/utils/student-service-record";
+import { displayName } from "@/lib/utils/display-name";
 
 function formatDate(date: Date | string | null) {
   if (!date) return "—";
@@ -116,7 +117,10 @@ export function ServiceRecordView({ record }: { record: StudentServiceRecord }) 
                   Student Training Record
                 </p>
                 <h2 className="text-2xl font-bold">
-                  {student.rank} {student.fullName}
+                  {student.rank}{" "}
+                  <span className="tracking-wide">
+                    {displayName(student.fullName)}
+                  </span>
                 </h2>
                 <p className="font-mono text-sm text-muted-foreground mt-1 print:text-black">
                   Army No. {student.armyNumber}

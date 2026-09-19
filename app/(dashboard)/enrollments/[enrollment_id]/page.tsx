@@ -10,6 +10,7 @@ import {
   courseIntakes,
   results,
 } from "@/lib/db/schema";
+import type { Grade } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { PrintButton } from "@/components/print-button";
 import { BackButton } from "@/components/back-button";
 import { studentPath } from "@/lib/utils";
@@ -33,10 +34,11 @@ import { getSessionUser } from "@/lib/auth";
 import { EnrollmentStatusForm } from "../_components/enrollment-status-form";
 import { DownloadCertificateButton } from "@/components/download-certificate-button";
 import { isEligibleForCertificate } from "@/lib/utils/certificate-data";
-import { canManageResults } from "@/lib/auth/guards";
+import { canManageEnrollments, canManageResults } from "@/lib/auth/guards";
 import { parseBccResults } from "@/lib/utils/bcc-report";
 import { FinalCourseReport } from "@/app/(dashboard)/students/[army_number]/_components/final-course-report";
 import { getStudentPhotoPath } from "@/lib/utils/student-photo";
+import { displayName } from "@/lib/utils/display-name";
 
 export default async function EnrollmentDetailPage({
   params,
@@ -67,7 +69,6 @@ export default async function EnrollmentDetailPage({
       passingMark: courses.passingMark,
       status: enrollments.status,
       ceasedAt: enrollments.ceasedAt,
-      totalMarks: enrollments.totalMarks,
       averageMarks: enrollments.averageMarks,
       grade: enrollments.grade,
       position: enrollments.position,
@@ -90,20 +91,38 @@ export default async function EnrollmentDetailPage({
   );
   const canIssueCert =
     user && canManageResults(user.role) && certEligibility.eligible;
+  const canEdit = user && canManageEnrollments(user.role);
 
-  const enrollmentResults = await db
-    .select({
-      resultId: results.resultId,
-      subjectName: results.subjectName,
-      marksObtained: results.marksObtained,
-      maxMarks: results.maxMarks,
-      grade: results.grade,
-      remarks: results.remarks,
-      createdAt: results.createdAt,
-    })
-    .from(results)
-    .where(eq(results.enrollmentId, enrollmentId))
-    .orderBy(results.resultId);
+  let enrollmentResults: Array<{
+    resultId: number;
+    subjectName: string;
+    marksObtained: string;
+    maxMarks: string;
+    grade: string | null;
+    remarks: string | null;
+    createdAt: Date;
+  }> = [];
+
+  try {
+    enrollmentResults = await db
+      .select({
+        resultId: results.resultId,
+        subjectName: results.subjectName,
+        marksObtained: results.marksObtained,
+        maxMarks: results.maxMarks,
+        grade: results.grade,
+        remarks: results.remarks,
+        createdAt: results.createdAt,
+      })
+      .from(results)
+      .where(eq(results.enrollmentId, enrollmentId))
+      .orderBy(results.resultId);
+  } catch (error) {
+    console.error("Failed to load enrollment results:", {
+      enrollmentId,
+      error,
+    });
+  }
 
   const bccReport = parseBccResults(enrollmentResults);
   const photoPath = await getStudentPhotoPath(enrollment.studentArmyNumber);
@@ -113,14 +132,22 @@ export default async function EnrollmentDetailPage({
       <PageHeader
         title={
           bccReport
-            ? `Final Course Report — ${enrollment.rankAtEnrollment} ${enrollment.fullName}`
+            ? `Final Course Report — ${enrollment.rankAtEnrollment} ${displayName(enrollment.fullName)}`
             : `Enrollment #${enrollment.enrollmentId}`
         }
-        description={`${enrollment.rankAtEnrollment} ${enrollment.fullName} — ${enrollment.courseCode}`}
+        description={`${enrollment.rankAtEnrollment} ${displayName(enrollment.fullName)} — ${enrollment.courseCode}`}
       >
         <PrintButton
           title={`Enrollment #${enrollment.enrollmentId} — ${enrollment.courseCode}`}
         />
+        {canEdit && (
+          <Button variant="outline" asChild>
+            <Link href={`/enrollments/${enrollmentId}/edit`}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Link>
+          </Button>
+        )}
         {canIssueCert && (
           <DownloadCertificateButton enrollmentId={enrollmentId} />
         )}
@@ -134,7 +161,7 @@ export default async function EnrollmentDetailPage({
         <FinalCourseReport
           forceNo={enrollment.studentArmyNumber}
           rank={enrollment.rankAtEnrollment}
-          fullName={enrollment.fullName}
+          fullName={displayName(enrollment.fullName)}
           unit={enrollment.unitAtEnrollment ?? enrollment.currentUnit}
           courseCode={enrollment.courseCode}
           courseName={enrollment.courseName}
@@ -143,6 +170,7 @@ export default async function EnrollmentDetailPage({
           completed={enrollment.endDate}
           position={enrollment.position}
           photoPath={photoPath}
+          averageMarks={enrollment.averageMarks}
           report={bccReport}
         />
       )}
@@ -161,7 +189,10 @@ export default async function EnrollmentDetailPage({
                     href={studentPath(enrollment.studentArmyNumber)}
                     className="hover:underline"
                   >
-                    {enrollment.rankAtEnrollment} {enrollment.fullName}
+                    {enrollment.rankAtEnrollment}{" "}
+                    <span className="tracking-wide">
+                      {displayName(enrollment.fullName)}
+                    </span>
                   </Link>
                 </dd>
               </div>
@@ -263,19 +294,19 @@ export default async function EnrollmentDetailPage({
         )}
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle>Performance Summary</CardTitle>
+            {canEdit && (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/enrollments/${enrollmentId}/edit`}>
+                  <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                  Edit
+                </Link>
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <dt className="font-medium text-muted-foreground">
-                  Total Marks
-                </dt>
-                <dd className="text-lg font-semibold">
-                  {enrollment.totalMarks ?? "—"}
-                </dd>
-              </div>
+            <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
               <div>
                 <dt className="font-medium text-muted-foreground">
                   Average Marks
@@ -290,7 +321,7 @@ export default async function EnrollmentDetailPage({
                 <dt className="font-medium text-muted-foreground">Grade</dt>
                 <dd>
                   {enrollment.grade ? (
-                    <GradeBadge grade={enrollment.grade as any} />
+                    <GradeBadge grade={enrollment.grade as Grade | null} />
                   ) : (
                     "—"
                   )}
@@ -356,7 +387,7 @@ export default async function EnrollmentDetailPage({
                       </TableCell>
                       <TableCell>{percentage.toFixed(1)}%</TableCell>
                       <TableCell>
-                        {r.grade ? <GradeBadge grade={r.grade as any} /> : "—"}
+                        {r.grade ? <GradeBadge grade={r.grade as Grade | null} /> : "—"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {r.remarks ?? "—"}

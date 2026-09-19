@@ -10,8 +10,10 @@ import {
 } from "../db/schema";
 import { recalculatePositions } from "./positions";
 import { tpdfGradeToSystem } from "./bcc-report";
+import { DEFAULT_PASSING_MARK } from "./passing-mark";
+import { academicStatusFromAverage } from "./enrollment-status";
 import {
-  parseSofaWorkbook,
+  parseSofaWorkbookAll,
   sofaResultRows,
   type ParsedSofaWorkbook,
 } from "./sofa-excel";
@@ -48,7 +50,7 @@ export async function importParsedSofaWorkbook(
         courseName: parsed.courseName,
         description: `${parsed.courseName}. Imported from official SOFA workbook.`,
         durationWeeks: parsed.durationWeeks,
-        passingMark: 50,
+        passingMark: 55,
         isActive: true,
       })
       .returning({ courseId: courses.courseId });
@@ -188,6 +190,9 @@ export async function importParsedSofaWorkbook(
 
     const systemGrade = tpdfGradeToSystem(student.tpdfGrade);
     let enrollmentId = existingEnrollment?.enrollmentId;
+    const status =
+      academicStatusFromAverage(student.overall, DEFAULT_PASSING_MARK) ??
+      "completed";
 
     if (!enrollmentId) {
       const [created] = await db
@@ -197,7 +202,8 @@ export async function importParsedSofaWorkbook(
           intakeId,
           rankAtEnrollment: student.rank,
           unitAtEnrollment: student.unit || null,
-          status: "completed",
+          status,
+          ...(status === "incomplete" ? { ceasedAt: new Date() } : {}),
           totalMarks: student.overall.toFixed(2),
           averageMarks: student.overall.toFixed(2),
           grade: systemGrade,
@@ -210,7 +216,8 @@ export async function importParsedSofaWorkbook(
         .set({
           rankAtEnrollment: student.rank,
           unitAtEnrollment: student.unit || null,
-          status: "completed",
+          status,
+          ...(status === "incomplete" ? { ceasedAt: new Date() } : {}),
           totalMarks: student.overall.toFixed(2),
           averageMarks: student.overall.toFixed(2),
           grade: systemGrade,
@@ -254,8 +261,8 @@ export async function importSofaWorkbookFromBuffer(
   filename: string,
   enteredBy?: number | null
 ): Promise<SofaImportSummary> {
-  const parsed = parseSofaWorkbook(buffer, filename);
-  return importParsedSofaWorkbook(parsed, enteredBy);
+  const parsedList = parseSofaWorkbookAll(buffer, filename);
+  return importParsedSofaWorkbookList(parsedList, enteredBy);
 }
 
 export async function importSofaWorkbookFromPath(
@@ -263,6 +270,40 @@ export async function importSofaWorkbookFromPath(
   filename: string,
   enteredBy?: number | null
 ): Promise<SofaImportSummary> {
-  const parsed = parseSofaWorkbook(filePath, filename);
-  return importParsedSofaWorkbook(parsed, enteredBy);
+  const parsedList = parseSofaWorkbookAll(filePath, filename);
+  return importParsedSofaWorkbookList(parsedList, enteredBy);
+}
+
+async function importParsedSofaWorkbookList(
+  parsedList: ParsedSofaWorkbook[],
+  enteredBy?: number | null
+): Promise<SofaImportSummary> {
+  if (parsedList.length === 0) {
+    throw new Error("No parseable sheets found in workbook.");
+  }
+
+  let combined: SofaImportSummary | null = null;
+  for (const parsed of parsedList) {
+    const summary = await importParsedSofaWorkbook(parsed, enteredBy);
+    if (!combined) {
+      combined = { ...summary };
+    } else {
+      combined.students += summary.students;
+      combined.results += summary.results;
+      combined.skippedSheets += summary.skippedSheets;
+      combined.warnings = [
+        ...combined.warnings,
+        ...summary.warnings,
+        `Also imported ${summary.courseCode} intake ${summary.intakeNumber}.`,
+      ];
+      // Keep last intake as primary navigation target
+      combined.courseId = summary.courseId;
+      combined.intakeId = summary.intakeId;
+      combined.courseCode = summary.courseCode;
+      combined.courseName = summary.courseName;
+      combined.intakeNumber = summary.intakeNumber;
+    }
+  }
+
+  return combined!;
 }

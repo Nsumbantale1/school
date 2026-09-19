@@ -51,6 +51,9 @@ const MIME_TO_EXT: Record<string, string> = {
     ".docx",
   "application/vnd.ms-excel": ".xls",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+  "application/vnd.ms-powerpoint": ".ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+    ".pptx",
 };
 
 export function extensionForMime(mime: string): string | null {

@@ -11,9 +11,9 @@ import { updateEnrollmentStatus } from "../actions";
 const STATUS_OPTIONS = [
   { value: "enrolled", label: "Enrolled" },
   { value: "in_progress", label: "In Progress" },
-  { value: "completed", label: "Completed (passed)" },
-  { value: "failed", label: "Failed (exam — below 55%)" },
-  { value: "incomplete", label: "Incomplete (ceased — academic)" },
+  { value: "completed", label: "Completed (passed — 55%+)" },
+  { value: "incomplete", label: "CT — Ceased Training (below 55%)" },
+  { value: "failed", label: "CT — Ceased Training (legacy failed)" },
   { value: "indiscipline", label: "Indiscipline (ceased — 3 year ban)" },
   { value: "withdrawn", label: "Withdrawn" },
 ] as const;
@@ -32,7 +32,8 @@ export function EnrollmentStatusForm({
   const router = useRouter();
   const [pending, setPending] = React.useState(false);
   const [status, setStatus] = React.useState(currentStatus);
-  const needsCeasedDate = status === "incomplete" || status === "indiscipline";
+  const needsCeasedDate =
+    status === "incomplete" || status === "indiscipline" || status === "failed";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -86,7 +87,7 @@ export function EnrollmentStatusForm({
           <p className="text-xs text-muted-foreground">
             {status === "indiscipline"
               ? "The student cannot enroll in any course for 3 years from this date."
-              : "The student may enroll in another course later (no ban applies)."}
+              : "CT — Ceased Training (academic). Student scored below the 55% pass mark."}
           </p>
         </div>
       )}

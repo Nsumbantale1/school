@@ -117,20 +117,20 @@ export function IntakeForm({ courses, initialData, defaultCourseId }: IntakeForm
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="commanderName">Commander Name</Label>
+          <Label htmlFor="commanderName">Course Comd</Label>
           <Input
             id="commanderName"
             name="commanderName"
-            placeholder="e.g., Col. John Doe"
+            placeholder="Fill later — e.g. Capt John Doe"
             defaultValue={initialData?.commanderName ?? ""}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="coordinatorName">Coordinator Name</Label>
+          <Label htmlFor="coordinatorName">Coordinator</Label>
           <Input
             id="coordinatorName"
             name="coordinatorName"
-            placeholder="e.g., Maj. Jane Smith"
+            placeholder="Fill later — e.g. Maj Jane Smith"
             defaultValue={initialData?.coordinatorName ?? ""}
           />
         </div>

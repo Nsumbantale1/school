@@ -15,6 +15,7 @@ export interface IntakeListItem {
   intakeNumber: string;
   year: number;
   commanderName: string | null;
+  coordinatorName: string | null;
   startDate: string;
   endDate: string | null;
   isActive: boolean;
@@ -131,12 +132,18 @@ export function CourseIntakesList({
                     <CalendarDays className="h-3.5 w-3.5 shrink-0 text-[#1a5c2e]/70 dark:text-[#7dcea0]" />
                     {formatPeriod(intake.startDate, intake.endDate)}
                   </span>
-                  {intake.commanderName && (
-                    <span className="inline-flex items-center gap-1.5 truncate">
-                      <UserRound className="h-3.5 w-3.5 shrink-0 text-[#1a5c2e]/70 dark:text-[#7dcea0]" />
-                      <span className="truncate">{intake.commanderName}</span>
+                  <span className="inline-flex items-center gap-1.5 truncate">
+                    <UserRound className="h-3.5 w-3.5 shrink-0 text-[#1a5c2e]/70 dark:text-[#7dcea0]" />
+                    <span className="truncate">
+                      Comd: {intake.commanderName || "— fill later"}
                     </span>
-                  )}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 truncate">
+                    <UserRound className="h-3.5 w-3.5 shrink-0 text-[#1a5c2e]/70 dark:text-[#7dcea0]" />
+                    <span className="truncate">
+                      Coord: {intake.coordinatorName || "— fill later"}
+                    </span>
+                  </span>
                 </div>
 
                 <p className="mt-auto pt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#1a5c2e] opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:text-[#7dcea0]">

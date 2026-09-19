@@ -236,8 +236,8 @@ export function ResultForm({
               </p>
             </div>
             <div className="text-sm text-muted-foreground">
-              <p>A: 80%+ | B: 60-79%</p>
-              <p>C: 50-59% | D: 40-49% | F: &lt;40%</p>
+              <p>A: 80%+ | B: 60–79% | C: 55–59%</p>
+              <p>F: below 55% (pass mark)</p>
             </div>
           </div>
         </CardContent>

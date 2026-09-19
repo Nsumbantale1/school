@@ -35,7 +35,7 @@ async function ensure(code: string, name: string, weeks: number) {
       courseName: name,
       description: `${name}.`,
       durationWeeks: weeks,
-      passingMark: 50,
+      passingMark: 55,
       isActive: true,
     })
     .returning({ id: courses.courseId });

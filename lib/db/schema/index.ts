@@ -12,5 +12,6 @@ export * from "./certificates";
 export * from "./certificate-requests";
 export * from "./course-notices";
 export * from "./notifications";
+export * from "./presentations";
 export * from "./audit-logs";
 export * from "./login-logs";

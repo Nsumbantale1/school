@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/status-badge";
 import { GradeBadge } from "@/components/grade-badge";
 import { PositionBadge } from "@/components/position-badge";
+import { displayName } from "@/lib/utils/display-name";
 import { DataTable, type Column } from "@/components/data-table";
 import {
   Select,
@@ -45,10 +46,10 @@ const SCORE_PRESETS: Array<{
 }> = [
   { value: ALL, label: "All scores" },
   { value: "below40", label: "Below 40%", max: 40, exclusiveMax: true },
-  { value: "below50", label: "Below 50%", max: 50, exclusiveMax: true },
+  { value: "below55", label: "Below 55% (fail)", max: 55, exclusiveMax: true },
   { value: "below59", label: "Below 59%", max: 59, exclusiveMax: true },
   { value: "below60", label: "Below 60%", max: 60, exclusiveMax: true },
-  { value: "from50", label: "50% and above", min: 50 },
+  { value: "from55", label: "55% and above (pass)", min: 55 },
   { value: "from60", label: "60% and above", min: 60 },
   { value: "from80", label: "80% and above", min: 80 },
 ];
@@ -64,7 +65,11 @@ const columns: Column<EnrollmentRow>[] = [
   {
     key: "fullName",
     header: "Student",
-    cell: (row) => `${row.rank} ${row.fullName}`,
+    cell: (row) => (
+      <span className="tracking-wide">
+        {row.rank} {displayName(row.fullName)}
+      </span>
+    ),
     sortable: true,
   },
   {

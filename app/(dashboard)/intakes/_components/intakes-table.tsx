@@ -53,8 +53,13 @@ const columns: Column<IntakeRow>[] = [
   },
   {
     key: "commanderName",
-    header: "Commander",
+    header: "Course Comd",
     cell: (row) => row.commanderName ?? "—",
+  },
+  {
+    key: "coordinatorName",
+    header: "Coordinator",
+    cell: (row) => row.coordinatorName ?? "—",
   },
   {
     key: "startDate",
@@ -76,8 +81,14 @@ export function IntakesTable({ data }: { data: IntakeRow[] }) {
       columns={columns}
       data={data}
       searchKey="courseName"
-      searchKeys={["courseName", "courseCode", "intakeNumber", "commanderName"]}
-      searchPlaceholder="Search course, intake, or commander..."
+      searchKeys={[
+        "courseName",
+        "courseCode",
+        "intakeNumber",
+        "commanderName",
+        "coordinatorName",
+      ]}
+      searchPlaceholder="Search course, intake, comd, or coordinator..."
       getRowKey={(row) => row.intakeId}
       onRowClick={(row) => router.push(`/intakes/${row.intakeId}`)}
     />

@@ -14,6 +14,7 @@ interface ExportButtonsProps {
   columns: ExportColumn[];
   filename: string;
   title?: string;
+  subtitle?: string;
 }
 
 export function ExportButtons({
@@ -21,6 +22,7 @@ export function ExportButtons({
   columns,
   filename,
   title,
+  subtitle,
 }: ExportButtonsProps) {
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
@@ -74,18 +76,31 @@ export function ExportButtons({
       });
 
       // Add title
+      let startY = 15;
       if (title) {
-        doc.setFontSize(16);
-        doc.text(title, 14, 15);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text(title, 14, startY);
+        startY += 7;
+      }
+
+      if (subtitle) {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        const lines = doc.splitTextToSize(subtitle, 270);
+        doc.text(lines, 14, startY);
+        startY += lines.length * 4 + 2;
       }
 
       // Add generation date
-      doc.setFontSize(10);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
       doc.text(
-        `Generated: ${new Date().toLocaleDateString()}`,
+        `Generated: ${new Date().toLocaleDateString("en-GB")}`,
         14,
-        title ? 22 : 15
+        startY
       );
+      startY += 6;
 
       // Prepare table data
       const tableHeaders = columns.map((c) => c.header);
@@ -97,13 +112,13 @@ export function ExportButtons({
       autoTable(doc, {
         head: [tableHeaders],
         body: tableRows,
-        startY: title ? 28 : 20,
+        startY,
         styles: {
-          fontSize: 9,
+          fontSize: 8,
           cellPadding: 2,
         },
         headStyles: {
-          fillColor: [59, 130, 246],
+          fillColor: [26, 92, 46],
           textColor: 255,
           fontStyle: "bold",
         },
@@ -148,7 +163,7 @@ export function ExportButtons({
         ) : (
           <FileDown className="h-4 w-4 mr-2" />
         )}
-        Export PDF
+        Download PDF
       </Button>
     </div>
   );

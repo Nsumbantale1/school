@@ -9,7 +9,7 @@ import {
   courseSubjects,
   students,
 } from "@/lib/db/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   requireAuth,
@@ -25,19 +25,59 @@ const META_HEADERS = new Set([
   "army number",
   "army_number",
   "armynumber",
+  "service number",
+  "service_number",
+  "no",
+  "number",
   "full name",
   "full_name",
   "name",
+  "student name",
+  "student_name",
   "rank",
   "unit",
+  "formation",
+  "remarks",
+  "comment",
+  "comments",
+  "position",
+  "pos",
+  "grade",
+  "average",
+  "avg",
+  "total",
+  "status",
+  "s/n",
+  "sn",
+  "no",
+  "number",
+  "serial",
+  "serial no",
+  "serial number",
 ]);
 
 function normalizeHeader(h: string) {
   return h.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/** Display form: collapse spaces. */
 function normalizeArmyNumber(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+/** Match key: ignore spaces / punctuation so "P 13320" ≈ "P13320". */
+function armyMatchKey(value: string) {
+  return normalizeArmyNumber(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function isArmyHeader(h: string) {
+  return [
+    "army number",
+    "army_number",
+    "armynumber",
+    "service number",
+    "service_number",
+  ].includes(h);
 }
 
 async function assertCanImportIntake(intakeId: number) {
@@ -103,9 +143,7 @@ export async function importResultsFromCsv(formData: FormData) {
   const headers = rows[0].map((h) => h.trim());
   const normalized = headers.map(normalizeHeader);
 
-  const armyIdx = normalized.findIndex((h) =>
-    ["army number", "army_number", "armynumber"].includes(h)
-  );
+  const armyIdx = normalized.findIndex((h) => isArmyHeader(h));
   if (armyIdx === -1) {
     return {
       success: false,
@@ -118,14 +156,63 @@ export async function importResultsFromCsv(formData: FormData) {
     .select({
       subjectName: courseSubjects.subjectName,
       maxMarks: courseSubjects.maxMarks,
+      sortOrder: courseSubjects.sortOrder,
     })
     .from(courseSubjects)
     .where(eq(courseSubjects.courseId, intake.courseId))
     .orderBy(asc(courseSubjects.sortOrder));
 
-  const maxBySubject = new Map(
-    subjectCatalog.map((s) => [s.subjectName.toLowerCase(), Number(s.maxMarks) || 100])
+  const catalogByKey = new Map(
+    subjectCatalog.map((s) => [
+      s.subjectName.toLowerCase(),
+      {
+        subjectName: s.subjectName,
+        maxMarks: Number(s.maxMarks) || 100,
+      },
+    ])
   );
+
+  // Also learn subject names already stored on results for this intake
+  const existingSubjects = await db
+    .selectDistinct({ subjectName: results.subjectName })
+    .from(results)
+    .innerJoin(enrollments, eq(results.enrollmentId, enrollments.enrollmentId))
+    .where(eq(enrollments.intakeId, intakeId));
+
+  for (const s of existingSubjects) {
+    const key = s.subjectName.toLowerCase();
+    if (!catalogByKey.has(key)) {
+      catalogByKey.set(key, { subjectName: s.subjectName, maxMarks: 100 });
+    }
+  }
+
+  let nextSortOrder =
+    subjectCatalog.reduce((m, s) => Math.max(m, s.sortOrder ?? 0), 0) + 1;
+
+  async function resolveSubject(rawName: string): Promise<{
+    subjectName: string;
+    maxMarks: number;
+  }> {
+    const trimmed = rawName.trim();
+    const key = trimmed.toLowerCase();
+    const known = catalogByKey.get(key);
+    if (known) return known;
+
+    // Register new subject on the course so future templates include it
+    await db
+      .insert(courseSubjects)
+      .values({
+        courseId: intake.courseId,
+        subjectName: trimmed,
+        maxMarks: "100",
+        sortOrder: nextSortOrder++,
+      })
+      .onConflictDoNothing();
+
+    const resolved = { subjectName: trimmed, maxMarks: 100 };
+    catalogByKey.set(key, resolved);
+    return resolved;
+  }
 
   // Enrollments in this intake
   const intakeEnrollments = await db
@@ -137,18 +224,42 @@ export async function importResultsFromCsv(formData: FormData) {
     .where(eq(enrollments.intakeId, intakeId));
 
   const enrollmentByArmy = new Map(
-    intakeEnrollments.map((e) => [normalizeArmyNumber(e.armyNumber).toLowerCase(), e])
+    intakeEnrollments.map((e) => [
+      normalizeArmyNumber(e.armyNumber).toLowerCase(),
+      e,
+    ])
   );
+  const enrollmentByKey = new Map(
+    intakeEnrollments.map((e) => [armyMatchKey(e.armyNumber), e])
+  );
+
+  function findEnrollment(armyRaw: string) {
+    const display = normalizeArmyNumber(armyRaw);
+    return (
+      enrollmentByArmy.get(display.toLowerCase()) ??
+      enrollmentByKey.get(armyMatchKey(display))
+    );
+  }
 
   // Detect long format: Army Number, Subject, Marks [, Max Marks]
   const subjectColIdx = normalized.findIndex((h) =>
-    ["subject", "subject name", "subject_name"].includes(h)
+    ["subject", "subject name", "subject_name", "paper", "exam"].includes(h)
   );
   const marksColIdx = normalized.findIndex((h) =>
-    ["marks", "marks obtained", "marks_obtained", "score"].includes(h)
+    [
+      "marks",
+      "marks obtained",
+      "marks_obtained",
+      "score",
+      "mark",
+      "points",
+      "%",
+      "percent",
+      "percentage",
+    ].includes(h)
   );
   const maxColIdx = normalized.findIndex((h) =>
-    ["max marks", "max_marks", "maxmarks"].includes(h)
+    ["max marks", "max_marks", "maxmarks", "out of", "out_of"].includes(h)
   );
 
   type Pending = {
@@ -168,10 +279,10 @@ export async function importResultsFromCsv(formData: FormData) {
     for (let r = 1; r < rows.length; r++) {
       const row = rows[r];
       const army = normalizeArmyNumber(row[armyIdx] || "");
-      const subjectName = (row[subjectColIdx] || "").trim();
+      const subjectRaw = (row[subjectColIdx] || "").trim();
       const marksRaw = (row[marksColIdx] || "").trim();
-      if (!army && !subjectName && !marksRaw) continue;
-      if (!army || !subjectName) {
+      if (!army && !subjectRaw && !marksRaw) continue;
+      if (!army || !subjectRaw) {
         errors.push(`Row ${r + 1}: missing army number or subject.`);
         continue;
       }
@@ -179,28 +290,27 @@ export async function importResultsFromCsv(formData: FormData) {
         skippedEmpty++;
         continue;
       }
-      const marksObtained = Number(marksRaw);
+      const marksObtained = Number(marksRaw.replace(/%/g, "").replace(/,/g, ""));
       if (Number.isNaN(marksObtained)) {
         errors.push(`Row ${r + 1}: invalid marks "${marksRaw}".`);
         continue;
       }
-      const enrollment = enrollmentByArmy.get(army.toLowerCase());
+      const enrollment = findEnrollment(army);
       if (!enrollment) {
         errors.push(`Row ${r + 1}: student "${army}" is not enrolled in this intake.`);
         continue;
       }
-      let maxMarks = 100;
+      const resolved = await resolveSubject(subjectRaw);
+      let maxMarks = resolved.maxMarks;
       if (maxColIdx !== -1 && row[maxColIdx]?.trim()) {
-        maxMarks = Number(row[maxColIdx]);
-      } else if (maxBySubject.has(subjectName.toLowerCase())) {
-        maxMarks = maxBySubject.get(subjectName.toLowerCase())!;
+        const parsedMax = Number(row[maxColIdx].replace(/%/g, "").replace(/,/g, ""));
+        if (!Number.isNaN(parsedMax) && parsedMax > 0) maxMarks = parsedMax;
       }
-      if (Number.isNaN(maxMarks) || maxMarks <= 0) maxMarks = 100;
 
       pending.push({
         enrollmentId: enrollment.enrollmentId,
         armyNumber: army,
-        subjectName,
+        subjectName: resolved.subjectName,
         marksObtained,
         maxMarks,
       });
@@ -224,7 +334,7 @@ export async function importResultsFromCsv(formData: FormData) {
       const army = normalizeArmyNumber(row[armyIdx] || "");
       if (!army) continue;
 
-      const enrollment = enrollmentByArmy.get(army.toLowerCase());
+      const enrollment = findEnrollment(army);
       if (!enrollment) {
         errors.push(`Row ${r + 1}: student "${army}" is not enrolled in this intake.`);
         continue;
@@ -236,20 +346,22 @@ export async function importResultsFromCsv(formData: FormData) {
           skippedEmpty++;
           continue;
         }
-        const marksObtained = Number(marksRaw);
+        const marksObtained = Number(
+          marksRaw.replace(/%/g, "").replace(/,/g, "")
+        );
         if (Number.isNaN(marksObtained)) {
           errors.push(
             `Row ${r + 1} (${army}): invalid marks for "${col.h}" ("${marksRaw}").`
           );
           continue;
         }
-        const maxMarks = maxBySubject.get(col.h.toLowerCase()) ?? 100;
+        const resolved = await resolveSubject(col.h);
         pending.push({
           enrollmentId: enrollment.enrollmentId,
           armyNumber: army,
-          subjectName: col.h,
+          subjectName: resolved.subjectName,
           marksObtained,
-          maxMarks,
+          maxMarks: resolved.maxMarks,
         });
       }
     }
@@ -269,19 +381,30 @@ export async function importResultsFromCsv(formData: FormData) {
   let updated = 0;
   const touchedEnrollments = new Set<number>();
 
+  const enrollmentIds = [...new Set(pending.map((p) => p.enrollmentId))];
+  const existingRows =
+    enrollmentIds.length > 0
+      ? await db
+          .select({
+            resultId: results.resultId,
+            enrollmentId: results.enrollmentId,
+            subjectName: results.subjectName,
+          })
+          .from(results)
+          .where(inArray(results.enrollmentId, enrollmentIds))
+      : [];
+
+  const existingByKey = new Map(
+    existingRows.map((r) => [
+      `${r.enrollmentId}::${r.subjectName.toLowerCase()}`,
+      r,
+    ])
+  );
+
   for (const item of pending) {
     const grade = calculateGrade(item.marksObtained, item.maxMarks);
-
-    const [existing] = await db
-      .select({ resultId: results.resultId })
-      .from(results)
-      .where(
-        and(
-          eq(results.enrollmentId, item.enrollmentId),
-          eq(results.subjectName, item.subjectName)
-        )
-      )
-      .limit(1);
+    const key = `${item.enrollmentId}::${item.subjectName.toLowerCase()}`;
+    const existing = existingByKey.get(key);
 
     if (existing) {
       if (!updateExisting) {
@@ -293,6 +416,7 @@ export async function importResultsFromCsv(formData: FormData) {
       await db
         .update(results)
         .set({
+          subjectName: item.subjectName,
           marksObtained: item.marksObtained.toString(),
           maxMarks: item.maxMarks.toString(),
           grade,
@@ -311,12 +435,17 @@ export async function importResultsFromCsv(formData: FormData) {
         enteredBy: user.userId,
       });
       created++;
+      existingByKey.set(key, {
+        resultId: -1,
+        enrollmentId: item.enrollmentId,
+        subjectName: item.subjectName,
+      });
     }
 
     touchedEnrollments.add(item.enrollmentId);
   }
 
-  // Recalculate averages + positions once for the intake
+  // Recalculate averages, grades, status (CT if <55%), and positions
   await recalculatePositions(intakeId);
 
   await auditCreate(user, "results", `import-intake-${intakeId}`, {
@@ -341,7 +470,7 @@ export async function importResultsFromCsv(formData: FormData) {
     skippedEmpty,
     errors: errors.slice(0, 50),
     errorCount: errors.length,
-    message: `Imported ${created + updated} mark(s): ${created} new, ${updated} updated.`,
+    message: `Imported ${created + updated} mark(s): ${created} new, ${updated} updated. Averages, grades and positions updated.`,
   };
 }
 

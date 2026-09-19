@@ -22,28 +22,47 @@ import { canManageResults } from "@/lib/auth/guards";
 export default async function ResultsPage() {
   const user = await getSessionUser();
 
-  const data = await db
-    .select({
-      resultId: results.resultId,
-      studentArmyNumber: students.armyNumber,
-      fullName: students.fullName,
-      unit: students.unit,
-      rank: enrollments.rankAtEnrollment,
-      courseCode: courses.courseCode,
-      intakeNumber: courseIntakes.intakeNumber,
-      subjectName: results.subjectName,
-      marksObtained: results.marksObtained,
-      maxMarks: results.maxMarks,
-      grade: results.grade,
-      enteredByName: users.name,
-    })
-    .from(results)
-    .innerJoin(enrollments, eq(results.enrollmentId, enrollments.enrollmentId))
-    .innerJoin(students, eq(enrollments.studentArmyNumber, students.armyNumber))
-    .innerJoin(courseIntakes, eq(enrollments.intakeId, courseIntakes.intakeId))
-    .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
-    .leftJoin(users, eq(results.enteredBy, users.id))
-    .orderBy(desc(results.createdAt));
+  let data: Array<{
+    resultId: number;
+    studentArmyNumber: string;
+    fullName: string;
+    unit: string | null;
+    rank: string;
+    courseCode: string;
+    intakeNumber: string;
+    subjectName: string;
+    marksObtained: string;
+    maxMarks: string;
+    grade: string | null;
+    enteredByName: string | null;
+  }> = [];
+
+  try {
+    data = await db
+      .select({
+        resultId: results.resultId,
+        studentArmyNumber: students.armyNumber,
+        fullName: students.fullName,
+        unit: students.unit,
+        rank: enrollments.rankAtEnrollment,
+        courseCode: courses.courseCode,
+        intakeNumber: courseIntakes.intakeNumber,
+        subjectName: results.subjectName,
+        marksObtained: results.marksObtained,
+        maxMarks: results.maxMarks,
+        grade: results.grade,
+        enteredByName: users.name,
+      })
+      .from(results)
+      .innerJoin(enrollments, eq(results.enrollmentId, enrollments.enrollmentId))
+      .innerJoin(students, eq(enrollments.studentArmyNumber, students.armyNumber))
+      .innerJoin(courseIntakes, eq(enrollments.intakeId, courseIntakes.intakeId))
+      .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
+      .leftJoin(users, eq(results.enteredBy, users.id))
+      .orderBy(desc(results.createdAt));
+  } catch (error) {
+    console.error("Failed to load results page data:", error);
+  }
 
   return (
     <div className="space-y-6">

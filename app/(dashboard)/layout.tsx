@@ -4,7 +4,6 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { GlobalSearch } from "@/components/global-search";
 import { BackupFridayReminder } from "@/components/backup-friday-reminder";
 import { NotificationsBell } from "@/components/notifications-bell";
-import { SofaAssistant } from "@/components/sofa-assistant";
 import { getSessionUser } from "@/lib/auth";
 import { getLastBackupDate } from "@/lib/utils/backup-tracker";
 import {
@@ -21,13 +20,25 @@ export default async function DashboardLayout({
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const lastBackupAt =
-    user.role === "admin" ? await getLastBackupDate() : null;
+  let lastBackupAt: Date | null = null;
+  if (user.role === "admin") {
+    try {
+      lastBackupAt = await getLastBackupDate();
+    } catch {
+      lastBackupAt = null;
+    }
+  }
 
-  const [unreadCount, unreadItems] = await Promise.all([
-    countUnreadNotifications(user.userId),
-    getUnreadNotifications(user.userId, 8),
-  ]);
+  let unreadCount = 0;
+  let unreadItems: Awaited<ReturnType<typeof getUnreadNotifications>> = [];
+  try {
+    [unreadCount, unreadItems] = await Promise.all([
+      countUnreadNotifications(user.userId),
+      getUnreadNotifications(user.userId, 8),
+    ]);
+  } catch (error) {
+    console.error("Notifications unavailable:", error);
+  }
 
   return (
     <SidebarProvider>
@@ -59,7 +70,6 @@ export default async function DashboardLayout({
           )}
           {children}
         </main>
-        <SofaAssistant />
       </SidebarInset>
     </SidebarProvider>
   );

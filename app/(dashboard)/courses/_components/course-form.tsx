@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2 } from "lucide-react";
 import { createCourse, updateCourse } from "../actions";
+import { DEFAULT_PASSING_MARK } from "@/lib/utils/passing-mark";
 
 interface SubjectRow {
   subjectName: string;
@@ -124,9 +125,11 @@ export function CourseForm({ initialData }: CourseFormProps) {
             min="0"
             max="100"
             required
-            defaultValue={initialData?.passingMark ?? 40}
+            defaultValue={initialData?.passingMark ?? DEFAULT_PASSING_MARK}
           />
-          <p className="text-xs text-muted-foreground">Default: 40%</p>
+          <p className="text-xs text-muted-foreground">
+            Default: {DEFAULT_PASSING_MARK}%
+          </p>
         </div>
       </div>
 

@@ -52,7 +52,7 @@ async function ensureCourse(opts: {
       courseName: opts.name,
       description: opts.description,
       durationWeeks: opts.durationWeeks,
-      passingMark: 50,
+      passingMark: 55,
       isActive: true,
     })
     .returning({ courseId: courses.courseId });

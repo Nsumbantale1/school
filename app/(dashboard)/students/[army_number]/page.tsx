@@ -35,6 +35,7 @@ import { PrintButton } from "@/components/print-button";
 import { FinalCourseReport } from "./_components/final-course-report";
 import { parseBccResults } from "@/lib/utils/bcc-report";
 import { getStudentPhotoPath } from "@/lib/utils/student-photo";
+import { displayName } from "@/lib/utils/display-name";
 
 interface PageProps {
   params: Promise<{ army_number: string }>;
@@ -83,22 +84,42 @@ export default async function StudentDetailPage({ params }: PageProps) {
 
   const enrollmentIds = studentEnrollments.map((e) => e.enrollmentId);
 
-  const allResults =
-    enrollmentIds.length > 0
-      ? await db
-          .select({
-            resultId: results.resultId,
-            enrollmentId: results.enrollmentId,
-            subjectName: results.subjectName,
-            marksObtained: results.marksObtained,
-            maxMarks: results.maxMarks,
-            grade: results.grade,
-            remarks: results.remarks,
-          })
-          .from(results)
-          .where(inArray(results.enrollmentId, enrollmentIds))
-          .orderBy(results.resultId)
-      : [];
+  let allResults: Array<{
+    resultId: number;
+    enrollmentId: number;
+    subjectName: string;
+    marksObtained: string;
+    maxMarks: string;
+    grade: (typeof results.$inferSelect)["grade"];
+    remarks: string | null;
+  }> = [];
+
+  if (enrollmentIds.length > 0) {
+    try {
+      allResults = await db
+        .select({
+          resultId: results.resultId,
+          enrollmentId: results.enrollmentId,
+          subjectName: results.subjectName,
+          marksObtained: results.marksObtained,
+          maxMarks: results.maxMarks,
+          grade: results.grade,
+          remarks: results.remarks,
+        })
+        .from(results)
+        .where(inArray(results.enrollmentId, enrollmentIds))
+        .orderBy(results.resultId);
+    } catch (error) {
+      console.error(
+        "Failed to load subject results for student detail page:",
+        {
+          armyNumber: army_number,
+          enrollmentIds,
+          error,
+        }
+      );
+    }
+  }
 
   const resultsByEnrollment = new Map<number, typeof allResults>();
   for (const result of allResults) {
@@ -123,21 +144,29 @@ export default async function StudentDetailPage({ params }: PageProps) {
   ];
   const classSizeByIntake = new Map<number, number>();
   for (const intakeId of reportIntakeIds) {
-    const [row] = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(enrollments)
-      .where(eq(enrollments.intakeId, intakeId));
-    classSizeByIntake.set(intakeId, Number(row?.n ?? 0));
+    try {
+      const [row] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(enrollments)
+        .where(eq(enrollments.intakeId, intakeId));
+      classSizeByIntake.set(intakeId, Number(row?.n ?? 0));
+    } catch (error) {
+      console.error("Failed to load class size for intake:", {
+        intakeId,
+        error,
+      });
+      classSizeByIntake.set(intakeId, 0);
+    }
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${student.rank} ${student.fullName}`}
+        title={`${student.rank} ${displayName(student.fullName)}`}
         description={`Army Number: ${student.armyNumber} · Current rank`}
       >
         <PrintButton
-          title={`Final Course Report — ${student.rank} ${student.fullName}`}
+          title={`Final Course Report — ${student.rank} ${displayName(student.fullName)}`}
         />
         <Button variant="default" asChild>
           <Link href={studentPath(army_number, "/service-record")}>
@@ -164,7 +193,7 @@ export default async function StudentDetailPage({ params }: PageProps) {
             key={`bcc-${enrollment.enrollmentId}`}
             forceNo={student.armyNumber}
             rank={enrollment.rankAtEnrollment}
-            fullName={student.fullName}
+            fullName={displayName(student.fullName)}
             unit={enrollment.unitAtEnrollment ?? student.unit}
             courseCode={enrollment.courseCode}
             courseName={enrollment.courseName}
@@ -175,6 +204,7 @@ export default async function StudentDetailPage({ params }: PageProps) {
             classSize={classSizeByIntake.get(enrollment.intakeId) ?? null}
             enrollmentHref={`/enrollments/${enrollment.enrollmentId}`}
             photoPath={photoPath}
+            averageMarks={enrollment.averageMarks}
             report={report}
           />
         );

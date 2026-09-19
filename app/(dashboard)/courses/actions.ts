@@ -28,6 +28,7 @@ function parseSubjects(formData: FormData): SubjectInput[] {
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/guards";
 import { auditCreate, auditUpdate, auditDelete, getChangedFields } from "@/lib/utils/audit";
+import { DEFAULT_PASSING_MARK } from "@/lib/utils/passing-mark";
 
 export async function createCourse(formData: FormData) {
   const user = await requireRole(["admin"]);
@@ -35,7 +36,8 @@ export async function createCourse(formData: FormData) {
   const courseCode = formData.get("courseCode") as string;
   const courseName = formData.get("courseName") as string;
   const durationWeeks = parseInt(formData.get("durationWeeks") as string);
-  const passingMark = parseInt(formData.get("passingMark") as string) || 40;
+  const passingMark =
+    parseInt(formData.get("passingMark") as string) || DEFAULT_PASSING_MARK;
   const description = (formData.get("description") as string) || null;
 
   const subjects = parseSubjects(formData);
@@ -100,7 +102,8 @@ export async function updateCourse(courseId: number, formData: FormData) {
     courseCode: formData.get("courseCode") as string,
     courseName: formData.get("courseName") as string,
     durationWeeks: parseInt(formData.get("durationWeeks") as string),
-    passingMark: parseInt(formData.get("passingMark") as string) || 40,
+    passingMark:
+      parseInt(formData.get("passingMark") as string) || DEFAULT_PASSING_MARK,
     description: (formData.get("description") as string) || null,
     updatedAt: new Date(),
   };

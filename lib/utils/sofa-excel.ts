@@ -100,17 +100,18 @@ const COURSE_CATALOG: Array<{
     name: "Artillery Survey Level 2",
   },
   {
-    match: /ARTY\s*-?\s*TECH\s*-?\s*L\s*-?\s*3/,
+    match: /ARTYTECH\s*L\s*-?\s*3|ARTY\s*-?\s*TECH\s*-?\s*L\s*-?\s*3/,
     code: "ARTY-TECH-L3",
     name: "Artillery Technician Level 3",
   },
   {
-    match: /ARTY\s*-?\s*TECH\s*-?\s*L\s*-?\s*2/,
+    match: /ARTYTECH\s*L\s*-?\s*2|ARTY\s*-?\s*TECH\s*-?\s*L\s*-?\s*2|ARTY\s+L\s*-?\s*2/,
     code: "ARTY-TECH-L2",
     name: "Artillery Technician Level 2",
   },
   {
-    match: /ARTY\s*-?\s*TECH\s*-?\s*L\s*-?\s*1|ARTY\s*-?\s*TECH/,
+    match:
+      /ARTYTECH\s*L\s*-?\s*1|ARTY\s*-?\s*TECH\s*-?\s*L\s*-?\s*1|ARTY\s*-?\s*TECH|ARTY\s+L\s*-?\s*1/,
     code: "ARTY-TECH-L1",
     name: "Artillery Technician Level 1",
   },
@@ -180,7 +181,12 @@ const COURSE_CATALOG: Array<{
     name: "Master Gunner Course",
   },
   {
-    match: /\bOBGC\b/,
+    match: /\bOBATC\b|\bOBATIC\b/,
+    code: "OBATC",
+    name: "Observation Battery Artillery Technician Course",
+  },
+  {
+    match: /\bOBGC\b|\bOBG\b/,
     code: "OBGC",
     name: "Observation Battery Gunnery Course",
   },
@@ -615,10 +621,335 @@ function parseStudentSheet(
   };
 }
 
+function asMatokeoNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (value instanceof Date) return null;
+  let s = String(value).trim().replace(/[%+,]/g, "");
+  // Fix typos like "2..88"
+  s = s.replace(/(\d)\.{2,}(\d)/g, "$1.$2");
+  if (!s || /^[-.]+$/.test(s)) return null;
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseMatokeoTitleDates(title: string): {
+  startDate: string | null;
+  endDate: string | null;
+} {
+  const upper = title.toUpperCase().replace(/\s+/g, " ");
+  // KUANZIA 30MAY 22 HADI TAR11 OCT 22  /  KUANZIA 20 MARCH 20 HADI TAR07 AUG 20
+  const range = upper.match(
+    /KUANZIA\s+(\d{1,2}\s*[A-Z]{3,9}\s*\d{2,4})\s+HADI\s+(?:TAR\.?\s*)?(\d{1,2}\s*[A-Z]{3,9}\s*\d{2,4})/
+  );
+  if (!range) return { startDate: null, endDate: null };
+
+  const parseOne = (raw: string): string | null => {
+    const m = raw
+      .replace(/\s+/g, " ")
+      .trim()
+      .match(/^(\d{1,2})\s*([A-Z]{3,9})\s*(\d{2,4})$/);
+    if (!m) return null;
+    const day = parseInt(m[1], 10);
+    const monKey = m[2].slice(0, 3);
+    const mon = MONTHS[monKey];
+    if (mon == null) return null;
+    let year = parseInt(m[3], 10);
+    if (year < 100) year += 2000;
+    const iso = new Date(Date.UTC(year, mon, day)).toISOString().slice(0, 10);
+    return iso;
+  };
+
+  return {
+    startDate: parseOne(range[1]),
+    endDate: parseOne(range[2]),
+  };
+}
+
+function parseMatokeoIntake(title: string, filename: string): string {
+  const upper = title.toUpperCase();
+  const m = upper.match(/INTAKE\s*(\d{1,2})\s*[\/\-]\s*(\d{2,4})/);
+  if (m) {
+    return withBattery(`${m[1]}-${m[2]}`.replace(/\s+/g, ""), filename);
+  }
+  return (
+    withBattery(
+      intakeFromFilename(filename) ||
+        intakeFromDates(
+          parseMatokeoTitleDates(title).startDate,
+          parseMatokeoTitleDates(title).endDate
+        ),
+      filename
+    )
+  );
+}
+
+type MatokeoSheetParsed = {
+  sheetName: string;
+  title: string;
+  courseCode: string;
+  courseName: string;
+  intakeNumber: string;
+  startDate: string;
+  endDate: string | null;
+  year: number;
+  students: SofaStudentReport[];
+};
+
+/**
+ * Parse tabular "MATOKEO YA …" roster sheets (one row per student, subject columns).
+ * Used when the workbook is a summary marks file rather than per-student report sheets.
+ */
+export function parseMatokeoRosterSheet(
+  sheetName: string,
+  sheet: XLSX.WorkSheet,
+  filename: string
+): MatokeoSheetParsed | null {
+  const matrix = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, {
+    header: 1,
+    defval: "",
+    raw: false,
+  });
+  if (!matrix.length) return null;
+
+  const rows = matrix.map((r) => (Array.isArray(r) ? r : []));
+
+  let titleRowIdx = -1;
+  let title = "";
+  for (let i = 0; i < Math.min(8, rows.length); i++) {
+    const text = asText(rows[i]?.[0]);
+    if (/MATOKEO\s+YA/i.test(text) || /FINAL\s+EXAM/i.test(text)) {
+      titleRowIdx = i;
+      title = text;
+      break;
+    }
+  }
+  if (titleRowIdx === -1) {
+    // Sheet name sometimes carries course info; still look for A/NO header
+    title = sheetName;
+  }
+
+  let armyCol = -1;
+  let rankCol = -1;
+  let nameCol = -1;
+  let unitCol = -1;
+  let metaRowIdx = -1;
+
+  for (let i = 0; i < Math.min(12, rows.length); i++) {
+    const normalized = rows[i].map((c) => asText(c).toUpperCase());
+    const aIdx = normalized.findIndex((h) =>
+      ["A/NO", "A/N", "ARMY NUMBER", "ARMY NO", "FORCE NO", "NO YA JESHI"].includes(h)
+    );
+    if (aIdx === -1) continue;
+    armyCol = aIdx;
+    metaRowIdx = i;
+    rankCol = normalized.findIndex((h) => h === "RANK" || h === "CHETI");
+    nameCol = normalized.findIndex((h) =>
+      ["FULL NAME", "NAME", "JINA"].includes(h)
+    );
+    unitCol = normalized.findIndex((h) =>
+      ["UNIT", "KIKOSI", "FORMATION"].includes(h)
+    );
+    break;
+  }
+  if (armyCol === -1 || metaRowIdx === -1) return null;
+
+  // Subject header row: usually a few rows below meta, codes in columns after UNIT
+  let subjectRowIdx = -1;
+  let subjectStartCol = Math.max(
+    armyCol + 1,
+    rankCol >= 0 ? rankCol + 1 : -1,
+    nameCol >= 0 ? nameCol + 1 : -1,
+    unitCol >= 0 ? unitCol + 1 : -1,
+    5
+  );
+
+  for (let i = metaRowIdx; i < Math.min(metaRowIdx + 10, rows.length); i++) {
+    const cells = rows[i].map((c) => asText(c));
+    const codes = cells
+      .map((h, idx) => ({ h, idx }))
+      .filter(
+        ({ h, idx }) =>
+          idx >= 4 &&
+          h &&
+          !["S/NO", "A/NO", "RANK", "FULL NAME", "UNIT", "FINAL EXAMINATIONS"].includes(
+            h.toUpperCase()
+          ) &&
+          !/^FINAL/i.test(h)
+      );
+    const subjectLike = codes.filter(
+      ({ h }) =>
+        /^[A-Z][A-Z0-9 /.&-]{0,12}$/i.test(h) &&
+        !["TOTAL", "GRADE", "REMARKS", "POSITION", "POS", "AVG", "AVERAGE"].includes(
+          h.toUpperCase()
+        )
+    );
+    if (subjectLike.length >= 3) {
+      subjectRowIdx = i;
+      subjectStartCol = subjectLike[0].idx;
+      break;
+    }
+  }
+  if (subjectRowIdx === -1) return null;
+
+  const subjectHeader = rows[subjectRowIdx].map((c) => asText(c));
+  const subjectCols: Array<{ idx: number; name: string }> = [];
+  let totalCol = -1;
+  let gradeCol = -1;
+
+  for (let idx = subjectStartCol; idx < subjectHeader.length; idx++) {
+    const h = subjectHeader[idx];
+    if (!h) continue;
+    const up = h.toUpperCase();
+    if (up === "TOTAL" || up === "JUMLA") {
+      totalCol = idx;
+      continue;
+    }
+    if (up === "GRADE" || up === "DARAJA") {
+      gradeCol = idx;
+      continue;
+    }
+    if (["REMARKS", "POSITION", "POS", "AVG", "AVERAGE", "S/NO"].includes(up)) {
+      continue;
+    }
+    subjectCols.push({ idx, name: h });
+  }
+
+  if (subjectCols.length === 0) return null;
+
+  const catalog =
+    catalogFromText(title) ??
+    catalogFromText(sheetName) ??
+    catalogFromText(filename);
+  if (!catalog) return null;
+
+  const { startDate: titleStart, endDate: titleEnd } =
+    parseMatokeoTitleDates(title);
+  const startDate = titleStart || `${yearFromDate(null)}-01-01`;
+  const endDate = titleEnd;
+  const intakeNumber = parseMatokeoIntake(title, filename);
+  const year = yearFromDate(endDate || startDate);
+
+  type RawStudent = {
+    armyNumber: string;
+    rank: string;
+    fullName: string;
+    unit: string;
+    scores: Array<number | null>;
+    total: number | null;
+    grade: string;
+  };
+
+  const rawStudents: RawStudent[] = [];
+
+  for (let r = subjectRowIdx + 1; r < rows.length; r++) {
+    const row = rows[r];
+    const armyRaw = asText(row[armyCol]);
+    if (!armyRaw || !looksLikeArmyNumber(armyRaw)) continue;
+    const armyNumber = normalizeArmyNumber(armyRaw);
+    const rank = titleCaseRank(rankCol >= 0 ? asText(row[rankCol]) : "") || "Pte";
+    const fullName = (nameCol >= 0 ? asText(row[nameCol]) : "").toUpperCase() || armyNumber;
+    const unit = unitCol >= 0 ? asText(row[unitCol]).toUpperCase() : "";
+    const scores = subjectCols.map(({ idx }) => asMatokeoNumber(row[idx]));
+    if (scores.every((s) => s == null)) continue;
+    const total =
+      (totalCol >= 0 ? asMatokeoNumber(row[totalCol]) : null) ??
+      scores.reduce<number>((sum, s) => sum + (s ?? 0), 0);
+    const grade = gradeCol >= 0 ? asText(row[gradeCol]).toUpperCase() : "";
+    rawStudents.push({
+      armyNumber,
+      rank,
+      fullName,
+      unit,
+      scores,
+      total,
+      grade,
+    });
+  }
+
+  if (rawStudents.length === 0) return null;
+
+  // Estimate subject weights from column maxima so averages ≈ TOTAL/100
+  const colMaxes = subjectCols.map((_, i) => {
+    let max = 0;
+    for (const s of rawStudents) {
+      const v = s.scores[i];
+      if (v != null && v > max) max = v;
+    }
+    return max > 0 ? max : 1;
+  });
+  const sumMax = colMaxes.reduce((a, b) => a + b, 0) || 100;
+  const weights = colMaxes.map((m) => (m / sumMax) * 100);
+
+  const students: SofaStudentReport[] = rawStudents.map((s) => {
+    const theory: SofaTheoryRow[] = subjectCols.map((col, i) => {
+      const marks = s.scores[i] ?? 0;
+      const weight = weights[i];
+      const totalPct = weight > 0 ? (marks / weight) * 100 : 0;
+      return {
+        name: col.name,
+        theory: marks,
+        practical: null,
+        total: totalPct,
+        weight,
+        marks,
+      };
+    });
+    const overall = s.total ?? theory.reduce((sum, t) => sum + t.marks, 0);
+    const derivedGrade =
+      s.grade ||
+      (overall >= 80
+        ? "A"
+        : overall >= 70
+          ? "B"
+          : overall >= 55
+            ? "C"
+            : overall >= 40
+              ? "E"
+              : "F");
+    return {
+      armyNumber: s.armyNumber,
+      rank: s.rank,
+      fullName: s.fullName,
+      unit: s.unit,
+      courseRaw: title,
+      intakeRaw: intakeNumber,
+      startDate,
+      endDate,
+      overall,
+      tpdfGrade: derivedGrade,
+      tpdfRemarks: "",
+      theory,
+      field: [],
+    };
+  });
+
+  return {
+    sheetName,
+    title,
+    courseCode: catalog.code,
+    courseName: catalog.name,
+    intakeNumber,
+    startDate,
+    endDate,
+    year,
+    students,
+  };
+}
+
 export function parseSofaWorkbook(
   input: Buffer | Uint8Array | string,
   filename: string
 ): ParsedSofaWorkbook {
+  const all = parseSofaWorkbookAll(input, filename);
+  return all[0];
+}
+
+/** Parse official report sheets and/or MATOKEO roster sheets (may yield multiple intakes). */
+export function parseSofaWorkbookAll(
+  input: Buffer | Uint8Array | string,
+  filename: string
+): ParsedSofaWorkbook[] {
   const workbook =
     typeof input === "string"
       ? XLSX.readFile(input, { cellDates: true })
@@ -641,53 +972,167 @@ export function parseSofaWorkbook(
     students.push(parsed);
   }
 
-  if (students.length === 0) {
+  if (students.length > 0) {
+    const fileCatalog = catalogFromText(filename);
+    const sheetCatalog =
+      catalogFromText(students[0].courseRaw) ??
+      catalogFromText(students.map((s) => s.courseRaw).join(" "));
+    const catalog = sheetCatalog ?? fileCatalog;
+    if (!catalog) {
+      throw new Error(`${filename}: could not detect course (KOZI / filename).`);
+    }
+
+    const intakeFromStudents = students
+      .map((s) => s.intakeRaw)
+      .find((v) => v && !looksLikeDateValue(v) && /[0-9]/.test(v));
+    const intakeNumber = withBattery(
+      intakeFromStudents ||
+        intakeFromFilename(filename) ||
+        intakeFromDates(students[0].startDate, students[0].endDate),
+      filename
+    );
+
+    const startDate =
+      students.map((s) => s.startDate).find(Boolean) ||
+      `${yearFromDate(null)}-01-01`;
+    const endDate = students.map((s) => s.endDate).find(Boolean) || null;
+
+    if (students.some((s) => s.theory.length === 0 && s.field.length === 0)) {
+      warnings.push("Some student sheets had no subject marks.");
+    }
+
+    return [
+      {
+        filename,
+        courseCode: catalog.code,
+        courseName: catalog.name,
+        intakeNumber,
+        year: yearFromDate(endDate || startDate),
+        startDate,
+        endDate,
+        durationWeeks: weeksBetween(startDate, endDate),
+        students,
+        skippedSheets,
+        warnings,
+      },
+    ];
+  }
+
+  // Fallback: tabular MATOKEO YA … roster (includes Sheet1 etc.)
+  const matokeo: MatokeoSheetParsed[] = [];
+  for (const sheetName of workbook.SheetNames) {
+    const n = sheetName.trim().toLowerCase();
+    if (
+      n.startsWith("msururu") ||
+      n.startsWith("final exam") ||
+      n.startsWith("practical") ||
+      n.startsWith("monthly") ||
+      n.startsWith("weekly")
+    ) {
+      continue;
+    }
+    const parsed = parseMatokeoRosterSheet(
+      sheetName,
+      workbook.Sheets[sheetName],
+      filename
+    );
+    if (parsed) matokeo.push(parsed);
+  }
+
+  if (matokeo.length === 0) {
     throw new Error(
-      `${filename}: no student report sheets found. Use an official SOFA workbook.`
+      `${filename}: no student report sheets or MATOKEO roster found. Use an official SOFA workbook or a marks summary Excel.`
     );
   }
 
+  // Cross-fill name/rank/unit from other sheets in the same workbook (common when
+  // one sheet has identity columns and another has only marks).
+  const identityByArmy = new Map<
+    string,
+    { fullName: string; rank: string; unit: string }
+  >();
+  for (const sheet of matokeo) {
+    for (const s of sheet.students) {
+      const key = s.armyNumber.toLowerCase().replace(/\s+/g, "");
+      const existing = identityByArmy.get(key);
+      const hasName =
+        s.fullName &&
+        s.fullName.toUpperCase() !== s.armyNumber.toUpperCase() &&
+        !looksLikeArmyNumber(s.fullName);
+      if (!hasName) continue;
+      if (
+        !existing ||
+        !existing.fullName ||
+        existing.fullName.toUpperCase() === s.armyNumber.toUpperCase()
+      ) {
+        identityByArmy.set(key, {
+          fullName: s.fullName,
+          rank: s.rank,
+          unit: s.unit,
+        });
+      }
+    }
+  }
+  for (const sheet of matokeo) {
+    for (const s of sheet.students) {
+      const key = s.armyNumber.toLowerCase().replace(/\s+/g, "");
+      const id = identityByArmy.get(key);
+      if (!id) continue;
+      const nameMissing =
+        !s.fullName ||
+        s.fullName.toUpperCase() === s.armyNumber.toUpperCase() ||
+        looksLikeArmyNumber(s.fullName);
+      if (nameMissing) s.fullName = id.fullName;
+      if (!s.rank || s.rank === "Pte") s.rank = id.rank || s.rank;
+      if (!s.unit) s.unit = id.unit;
+    }
+  }
+
   const fileCatalog = catalogFromText(filename);
-  const sheetCatalog =
-    catalogFromText(students[0].courseRaw) ??
-    catalogFromText(students.map((s) => s.courseRaw).join(" "));
-  const catalog = sheetCatalog ?? fileCatalog;
-  if (!catalog) {
-    throw new Error(`${filename}: could not detect course (KOZI / filename).`);
+  const preferred = fileCatalog
+    ? matokeo.filter((m) => m.courseCode === fileCatalog.code)
+    : matokeo;
+  const chosen = preferred.length > 0 ? preferred : matokeo;
+
+  if (preferred.length === 0 && fileCatalog && matokeo.length > 0) {
+    warnings.push(
+      `Filename suggests ${fileCatalog.code}; importing ${matokeo
+        .map((m) => m.courseCode)
+        .join(", ")} from sheet titles.`
+    );
   }
 
-  const intakeFromStudents = students
-    .map((s) => s.intakeRaw)
-    .find((v) => v && !looksLikeDateValue(v) && /[0-9]/.test(v));
-  const intakeNumber = withBattery(
-    intakeFromStudents ||
-      intakeFromFilename(filename) ||
-      intakeFromDates(students[0].startDate, students[0].endDate),
-    filename
-  );
-
-  const startDate =
-    students.map((s) => s.startDate).find(Boolean) ||
-    `${yearFromDate(null)}-01-01`;
-  const endDate = students.map((s) => s.endDate).find(Boolean) || null;
-
-  if (students.some((s) => s.theory.length === 0 && s.field.length === 0)) {
-    warnings.push("Some student sheets had no subject marks.");
+  // Group by course + intake
+  const groups = new Map<string, MatokeoSheetParsed>();
+  for (const sheet of chosen) {
+    const key = `${sheet.courseCode}::${sheet.intakeNumber}`;
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, { ...sheet, students: [...sheet.students] });
+    } else {
+      const seen = new Set(existing.students.map((s) => s.armyNumber));
+      for (const s of sheet.students) {
+        if (!seen.has(s.armyNumber)) existing.students.push(s);
+      }
+    }
   }
 
-  return {
+  return [...groups.values()].map((g) => ({
     filename,
-    courseCode: catalog.code,
-    courseName: catalog.name,
-    intakeNumber,
-    year: yearFromDate(endDate || startDate),
-    startDate,
-    endDate,
-    durationWeeks: weeksBetween(startDate, endDate),
-    students,
+    courseCode: g.courseCode,
+    courseName: g.courseName,
+    intakeNumber: g.intakeNumber,
+    year: g.year,
+    startDate: g.startDate,
+    endDate: g.endDate,
+    durationWeeks: weeksBetween(g.startDate, g.endDate),
+    students: g.students,
     skippedSheets,
-    warnings,
-  };
+    warnings: [
+      ...warnings,
+      `Imported MATOKEO roster (${g.students.length} students) from sheet.`,
+    ],
+  }));
 }
 
 export function sofaResultRows(student: SofaStudentReport): Array<{

@@ -92,6 +92,156 @@ export async function createEnrollment(formData: FormData) {
   }
 }
 
+export async function updateEnrollment(enrollmentId: number, formData: FormData) {
+  const user = await requireRole(["admin"]);
+
+  const [existing] = await db
+    .select()
+    .from(enrollments)
+    .where(eq(enrollments.enrollmentId, enrollmentId))
+    .limit(1);
+
+  if (!existing) {
+    return { success: false, error: "Enrollment not found." };
+  }
+
+  const rankAtEnrollment = String(formData.get("rankAtEnrollment") ?? "").trim();
+  const unitRaw = String(formData.get("unitAtEnrollment") ?? "").trim();
+  const status = formData.get("status") as
+    | "enrolled"
+    | "in_progress"
+    | "completed"
+    | "failed"
+    | "incomplete"
+    | "indiscipline"
+    | "withdrawn";
+  const ceasedAtRaw = formData.get("ceasedAt") as string | null;
+  const ceasedAt =
+    ceasedAtRaw && ceasedAtRaw.length > 0 ? new Date(ceasedAtRaw) : null;
+
+  const averageRaw = String(formData.get("averageMarks") ?? "").trim();
+  const gradeRaw = String(formData.get("grade") ?? "").trim().toUpperCase();
+  const positionRaw = String(formData.get("position") ?? "").trim();
+
+  if (!rankAtEnrollment) {
+    return { success: false, error: "Rank at course is required." };
+  }
+
+  if (
+    !["enrolled", "in_progress", "completed", "failed", "incomplete", "indiscipline", "withdrawn"].includes(
+      status
+    )
+  ) {
+    return { success: false, error: "Invalid status." };
+  }
+
+  if (
+    (status === "incomplete" || status === "indiscipline" || status === "failed") &&
+    !ceasedAt
+  ) {
+    return {
+      success: false,
+      error:
+        "A ceased date is required for CT ceased training or indiscipline status.",
+    };
+  }
+
+  let averageMarks: string | null = null;
+  if (averageRaw !== "") {
+    const n = parseFloat(averageRaw);
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      return { success: false, error: "Average marks must be between 0 and 100." };
+    }
+    averageMarks = n.toFixed(2);
+  }
+
+  const allowedGrades = ["A", "B", "C", "D", "F"] as const;
+  let grade: (typeof allowedGrades)[number] | null = null;
+  if (gradeRaw !== "") {
+    if (!allowedGrades.includes(gradeRaw as (typeof allowedGrades)[number])) {
+      return { success: false, error: "Invalid grade." };
+    }
+    grade = gradeRaw as (typeof allowedGrades)[number];
+  }
+
+  let position: number | null = null;
+  if (positionRaw !== "") {
+    const p = parseInt(positionRaw, 10);
+    if (!Number.isFinite(p) || p < 1) {
+      return { success: false, error: "Position must be a positive whole number." };
+    }
+    position = p;
+  }
+
+  // Below pass mark → force CT ceased training
+  let finalStatus = status;
+  let finalGrade = grade;
+  let finalCeasedAt =
+    status === "incomplete" || status === "indiscipline" || status === "failed"
+      ? ceasedAt
+      : null;
+  if (
+    averageMarks != null &&
+    parseFloat(averageMarks) < 55 &&
+    status !== "indiscipline" &&
+    status !== "withdrawn"
+  ) {
+    finalStatus = "incomplete";
+    finalGrade = finalGrade ?? "F";
+    finalCeasedAt = ceasedAt ?? new Date();
+  }
+
+  try {
+    await db
+      .update(enrollments)
+      .set({
+        rankAtEnrollment,
+        unitAtEnrollment: unitRaw || null,
+        status: finalStatus,
+        ceasedAt: finalCeasedAt,
+        // Keep totalMarks aligned with average (overall %) for imports that used both.
+        totalMarks: averageMarks,
+        averageMarks,
+        grade: finalGrade,
+        position,
+        updatedAt: new Date(),
+      })
+      .where(eq(enrollments.enrollmentId, enrollmentId));
+
+    const changes = getChangedFields(
+      {
+        rankAtEnrollment: existing.rankAtEnrollment,
+        unitAtEnrollment: existing.unitAtEnrollment,
+        status: existing.status,
+        averageMarks: existing.averageMarks,
+        grade: existing.grade,
+        position: existing.position,
+      },
+      {
+        rankAtEnrollment,
+        unitAtEnrollment: unitRaw || null,
+        status: finalStatus,
+        averageMarks,
+        grade: finalGrade,
+        position,
+      }
+    );
+    await auditUpdate(user, "enrollments", String(enrollmentId), changes.old, changes.new);
+
+    revalidatePath("/enrollments");
+    revalidatePath(`/enrollments/${enrollmentId}`);
+    revalidatePath(`/enrollments/${enrollmentId}/edit`);
+    revalidatePath(`/intakes/${existing.intakeId}`);
+    revalidatePath(
+      `/students/${encodeURIComponent(existing.studentArmyNumber)}`
+    );
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 export async function updateEnrollmentStatus(enrollmentId: number, formData: FormData) {
   const user = await requireRole(["admin"]);
 
@@ -120,13 +270,13 @@ export async function updateEnrollmentStatus(enrollmentId: number, formData: For
     ceasedAtRaw && ceasedAtRaw.length > 0 ? new Date(ceasedAtRaw) : null;
 
   if (
-    (status === "incomplete" || status === "indiscipline") &&
+    (status === "incomplete" || status === "indiscipline" || status === "failed") &&
     !ceasedAt
   ) {
     return {
       success: false,
       error:
-        "A ceased date is required for incomplete or indiscipline status.",
+        "A ceased date is required for CT ceased training or indiscipline status.",
     };
   }
 
@@ -136,7 +286,9 @@ export async function updateEnrollmentStatus(enrollmentId: number, formData: For
       .set({
         status,
         ceasedAt:
-          status === "incomplete" || status === "indiscipline"
+          status === "incomplete" ||
+          status === "indiscipline" ||
+          status === "failed"
             ? ceasedAt
             : null,
         updatedAt: new Date(),

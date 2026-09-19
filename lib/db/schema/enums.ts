@@ -90,3 +90,10 @@ export const exerciseTypeEnum = pgEnum("exercise_type", [
   "drill",
   "other",
 ]);
+
+/** School presentation archive categories */
+export const presentationCategoryEnum = pgEnum("presentation_category", [
+  "officers",
+  "other_ranks",
+  "external",
+]);

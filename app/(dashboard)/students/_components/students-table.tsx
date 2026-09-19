@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { studentPath } from "@/lib/utils";
+import { displayName } from "@/lib/utils/display-name";
 
 interface StudentRow {
   armyNumber: string;
@@ -70,7 +71,9 @@ const columns: Column<StudentRow>[] = [
   {
     key: "fullName",
     header: "Full Name",
-    cell: (row) => row.fullName,
+    cell: (row) => (
+      <span className="tracking-wide">{displayName(row.fullName)}</span>
+    ),
     sortable: true,
   },
   {

@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import { calculateGrade } from "./grades";
 import { parseBccRemarks, tpdfGradeToSystem } from "./bcc-report";
 import type { Grade } from "../db/schema";
+import { DEFAULT_PASSING_MARK } from "./passing-mark";
+import { academicStatusFromAverage } from "./enrollment-status";
 
 /**
  * Recalculate positions for all students in an intake based on their average marks.
@@ -16,6 +18,7 @@ export async function recalculatePositions(intakeId: number): Promise<void> {
     .select({
       enrollmentId: enrollments.enrollmentId,
       studentArmyNumber: enrollments.studentArmyNumber,
+      status: enrollments.status,
     })
     .from(enrollments)
     .where(eq(enrollments.intakeId, intakeId));
@@ -103,6 +106,17 @@ export async function recalculatePositions(intakeId: number): Promise<void> {
           calculateGrade(score.totalMarks, score.totalMaxMarks)
         : null;
 
+    const academicStatus =
+      score.resultCount > 0
+        ? academicStatusFromAverage(score.averagePercentage, DEFAULT_PASSING_MARK)
+        : null;
+
+    const current = intakeEnrollments.find(
+      (e) => e.enrollmentId === score.enrollmentId
+    );
+    const protectStatus =
+      current?.status === "indiscipline" || current?.status === "withdrawn";
+
     // Update enrollment with calculated values
     await db
       .update(enrollments)
@@ -111,6 +125,14 @@ export async function recalculatePositions(intakeId: number): Promise<void> {
         averageMarks: score.averagePercentage.toFixed(2),
         grade,
         position,
+        ...(!protectStatus && academicStatus
+          ? {
+              status: academicStatus,
+              ...(academicStatus === "incomplete"
+                ? { ceasedAt: new Date() }
+                : {}),
+            }
+          : {}),
         updatedAt: new Date(),
       })
       .where(eq(enrollments.enrollmentId, score.enrollmentId));
@@ -164,12 +186,31 @@ export async function recalculateEnrollmentMarks(
     sofaGradeFromResults(enrollmentResults) ??
     calculateGrade(totalMarks, totalMaxMarks);
 
+  const academicStatus = academicStatusFromAverage(
+    averagePercentage,
+    DEFAULT_PASSING_MARK
+  );
+
+  const [existing] = await db
+    .select({ status: enrollments.status })
+    .from(enrollments)
+    .where(eq(enrollments.enrollmentId, enrollmentId))
+    .limit(1);
+  const protectStatus =
+    existing?.status === "indiscipline" || existing?.status === "withdrawn";
+
   await db
     .update(enrollments)
     .set({
       totalMarks: totalMarks.toFixed(2),
       averageMarks: averagePercentage.toFixed(2),
       grade,
+      ...(!protectStatus && academicStatus
+        ? {
+            status: academicStatus,
+            ...(academicStatus === "incomplete" ? { ceasedAt: new Date() } : {}),
+          }
+        : {}),
       updatedAt: new Date(),
     })
     .where(eq(enrollments.enrollmentId, enrollmentId));

@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
+import { displayName } from "@/lib/utils/display-name";
 import { GradeBadge } from "@/components/grade-badge";
 import { getSessionUser } from "@/lib/auth";
 import { studentPath } from "@/lib/utils";
@@ -164,7 +165,7 @@ export default async function DashboardPage() {
                   >
                     <div>
                       <span className="font-medium">
-                        {e.rank} {e.fullName}
+                        {e.rank} {displayName(e.fullName)}
                       </span>
                       <p className="text-muted-foreground text-xs">
                         {e.courseCode} - {e.intakeNumber}
@@ -204,7 +205,7 @@ export default async function DashboardPage() {
                   >
                     <div>
                       <span className="font-medium">
-                        {p.rank} {p.fullName}
+                        {p.rank} {displayName(p.fullName)}
                       </span>
                       <p className="text-muted-foreground text-xs">
                         {p.courseCode} -{" "}
@@ -250,6 +251,9 @@ export default async function DashboardPage() {
                 <Link href="/results/new">Enter Results</Link>
               </Button>
             )}
+            <Button asChild variant="outline" size="sm">
+              <Link href="/presentations">Presentations</Link>
+            </Button>
             <Button asChild variant="outline" size="sm">
               <Link href="/reports">View Reports</Link>
             </Button>

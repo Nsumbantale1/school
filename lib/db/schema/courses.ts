@@ -21,7 +21,7 @@ export const courses = pgTable(
     courseName: varchar("course_name", { length: 150 }).notNull(),
     description: text("description"),
     durationWeeks: smallint("duration_weeks").notNull(),
-    passingMark: smallint("passing_mark").notNull().default(40),
+    passingMark: smallint("passing_mark").notNull().default(55),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

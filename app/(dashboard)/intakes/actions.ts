@@ -96,6 +96,55 @@ export async function updateIntake(intakeId: number, formData: FormData) {
   }
 }
 
+export async function updateIntakeLeadership(
+  intakeId: number,
+  formData: FormData
+) {
+  const user = await requireRole(["admin"]);
+
+  const [existing] = await db
+    .select()
+    .from(courseIntakes)
+    .where(eq(courseIntakes.intakeId, intakeId))
+    .limit(1);
+
+  if (!existing) {
+    return { success: false, error: "Intake not found." };
+  }
+
+  const commanderName =
+    String(formData.get("commanderName") ?? "").trim() || null;
+  const coordinatorName =
+    String(formData.get("coordinatorName") ?? "").trim() || null;
+
+  try {
+    await db
+      .update(courseIntakes)
+      .set({
+        commanderName,
+        coordinatorName,
+        updatedAt: new Date(),
+      })
+      .where(eq(courseIntakes.intakeId, intakeId));
+
+    const changes = getChangedFields(
+      {
+        commanderName: existing.commanderName,
+        coordinatorName: existing.coordinatorName,
+      },
+      { commanderName, coordinatorName }
+    );
+    await auditUpdate(user, "course_intakes", String(intakeId), changes.old, changes.new);
+
+    revalidatePath("/intakes");
+    revalidatePath(`/intakes/${intakeId}`);
+    revalidatePath(`/courses/${existing.courseId}`);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 export async function deleteIntake(intakeId: number) {
   const user = await requireRole(["admin"]);
 

@@ -18,6 +18,7 @@ import {
   FileText,
   HardDrive,
   Megaphone,
+  Presentation,
 } from "lucide-react";
 
 import {
@@ -62,6 +63,7 @@ const navGroups: NavGroup[] = [
     items: [
       { title: "Courses", href: "/courses", icon: BookOpen },
       { title: "Course Notices", href: "/course-notices", icon: Megaphone },
+      { title: "Presentations", href: "/presentations", icon: Presentation },
       { title: "Intakes", href: "/intakes", icon: Calendar },
       { title: "Enrollments", href: "/enrollments", icon: ClipboardList },
       { title: "Results", href: "/results", icon: Award },

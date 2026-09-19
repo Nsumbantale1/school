@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { GradeBadge } from "@/components/grade-badge";
+import { displayName } from "@/lib/utils/display-name";
 import { DataTable, type Column } from "@/components/data-table";
 import {
   Select,
@@ -43,7 +44,11 @@ const columns: Column<ResultRow>[] = [
   {
     key: "fullName",
     header: "Student",
-    cell: (row) => `${row.rank} ${row.fullName}`,
+    cell: (row) => (
+      <span className="tracking-wide">
+        {row.rank} {displayName(row.fullName)}
+      </span>
+    ),
     sortable: true,
   },
   {

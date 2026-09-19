@@ -23,19 +23,40 @@ export async function parseSpreadsheetFile(file: File): Promise<string[][]> {
     const XLSX = await import("xlsx");
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) return [];
+    if (workbook.SheetNames.length === 0) return [];
 
-    const sheet = workbook.Sheets[sheetName];
-    const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-      header: 1,
-      defval: "",
-      raw: false,
-    });
+    const toRows = (sheetName: string) => {
+      const sheet = workbook.Sheets[sheetName];
+      const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+        header: 1,
+        defval: "",
+        raw: false,
+      });
+      return raw
+        .map((row) => (Array.isArray(row) ? row.map(cellToString) : []))
+        .filter((row) => row.some((cell) => cell !== ""));
+    };
 
-    return raw
-      .map((row) => (Array.isArray(row) ? row.map(cellToString) : []))
-      .filter((row) => row.some((cell) => cell !== ""));
+    const looksLikeMarksSheet = (rows: string[][]) => {
+      if (rows.length < 2) return false;
+      const header = rows[0].map((h) => h.trim().toLowerCase());
+      return header.some((h) =>
+        [
+          "army number",
+          "army_number",
+          "armynumber",
+          "service number",
+        ].includes(h)
+      );
+    };
+
+    // Prefer a sheet that looks like a marks roster (any sheet in the file).
+    for (const sheetName of workbook.SheetNames) {
+      const rows = toRows(sheetName);
+      if (looksLikeMarksSheet(rows)) return rows;
+    }
+
+    return toRows(workbook.SheetNames[0]);
   }
 
   throw new Error("Unsupported file type. Use .xlsx, .xls, or .csv");

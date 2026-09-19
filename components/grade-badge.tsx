@@ -14,7 +14,7 @@ const gradeLabels: Record<Grade, string> = {
   A: "Excellent",
   B: "Very Good",
   C: "Good",
-  D: "Pass",
+  D: "Legacy",
   F: "Fail",
 };
 
@@ -58,11 +58,9 @@ export function GradePercentage({ percentage, className }: GradePercentageProps)
       ? "text-green-600"
       : percentage >= 60
         ? "text-blue-600"
-        : percentage >= 50
+        : percentage >= 55
           ? "text-yellow-600"
-          : percentage >= 40
-            ? "text-orange-600"
-            : "text-red-600";
+          : "text-red-600";
 
   return (
     <span className={cn("font-medium", colorClass, className)}>

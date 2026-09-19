@@ -14,6 +14,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "npx tsx lib/db/seed.ts",
     "db:import-bcc": "npx tsx scripts/import-bcc.ts",
+    "db:import-bcc6": "npx tsx scripts/import-bcc6.ts",
+    "db:normalize-bcc6": "npx tsx scripts/normalize-bcc6.ts",
     "db:import-2026": "npx tsx scripts/import-sofa-workbooks.ts data/imports/2026",
     "db:import-2025": "npx tsx scripts/import-sofa-workbooks.ts /home/nstumbantale/MATOKEO/2025",
     "db:seed:subjects": "npx tsx lib/db/seed-subjects.ts",
@@ -21,7 +23,6 @@
     "backup": "npx tsx scripts/backup.ts",
     "restore": "npx tsx scripts/restore.ts",
     "change-password": "npx tsx scripts/change-password.ts",
-    "sofa-ai:install": "bash scripts/install-sofa-ai.sh",
     "test:security": "npx tsx --test tests/security.test.ts tests/session.test.ts"
   },
   "dependencies": {
