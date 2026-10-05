@@ -147,7 +147,7 @@ export default async function CourseDetailPage({
               <Clock className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Duration</p>
+              <p className="text-xs text-muted-foreground">Catalog duration</p>
               <p className="text-sm font-medium">{course.durationWeeks} weeks</p>
             </div>
           </CardContent>

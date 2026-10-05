@@ -1,12 +1,9 @@
 import type { StudentServiceRecord } from "./student-service-record";
+import { formatDateOnly } from "./format-date";
 
 function formatDate(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  return formatDateOnly(value, "long");
 }
 
 function statusLabel(status: string): string {

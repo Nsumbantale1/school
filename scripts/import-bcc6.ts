@@ -58,7 +58,7 @@ const MONTHS: Record<string, number> = {
 const COURSE_MAP: Array<{ match: RegExp; code: string; name: string }> = [
   { match: /\bFAOAC\b|\bFAOC\b/, code: "FAOC", name: "Field Artillery Officers Course" },
   { match: /\bOBATC\b|\bOBATIC\b/, code: "OBATC", name: "Observation Battery Artillery Technician Course" },
-  { match: /\bOBGC\b|\bOBG\b/, code: "OBGC", name: "Observation Battery Gunnery Course" },
+  { match: /\bOBGC\b|\bOBG\b/, code: "OBGC", name: "Officers Basic Gunnery Course" },
   { match: /\bROGC\b|\bROG\b/, code: "ROGC", name: "Regimental Officers Gunnery Course" },
   { match: /\bRSOC\b|\bRSCO\b/, code: "RSOC", name: "Regimental Survey Officers Course" },
   { match: /\bBCC\b/, code: "BCC", name: "Battery Commander Course" },
@@ -377,8 +377,16 @@ function parseSheet(sheetName: string, sheet: XLSX.WorkSheet): ParsedSheet | nul
     }
 
     let overall = totalIdx != null ? asNumber(row[totalIdx]) : null;
-    if (overall == null) {
+    if (overall == null || overall < 0 || overall > 100) {
+      // Reject Excel date-serials / blank TOTAL — fall back to sum of subject marks
       overall = subjectMarks.reduce((s, x) => s + x.marks, 0);
+    }
+    if (overall > 100) {
+      // Still absurd — skip this row's overall and use clamped sum
+      overall = Math.min(
+        100,
+        subjectMarks.reduce((s, x) => s + x.marks, 0)
+      );
     }
     const gradeRaw = gradeIdx != null ? asText(row[gradeIdx]) : "";
     const position =

@@ -9,7 +9,7 @@ import {
   enrollments,
   students,
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +39,7 @@ import { enrollmentStatusLabel } from "@/lib/utils/enrollment-status";
 import { IntakeLeadershipForm } from "../_components/intake-leadership-form";
 import { ExportButtons } from "@/components/export-buttons";
 import { ImportResultsForm } from "@/app/(dashboard)/results/import/_components/import-form";
+import { formatDatePeriod, weeksBetweenDates } from "@/lib/utils/format-date";
 
 interface PageProps {
   params: Promise<{ intake_id: string }>;
@@ -87,7 +88,12 @@ export default async function IntakeDetailPage({ params }: PageProps) {
       .from(enrollments)
       .innerJoin(students, eq(enrollments.studentArmyNumber, students.armyNumber))
       .where(eq(enrollments.intakeId, intakeId))
-      .orderBy(enrollments.position),
+      // Best average first; position is secondary (ties / missing averages)
+      .orderBy(
+        sql`${enrollments.averageMarks} DESC NULLS LAST`,
+        sql`${enrollments.position} ASC NULLS LAST`,
+        enrollments.studentArmyNumber
+      ),
   ]);
 
   if (!intake) {
@@ -157,6 +163,8 @@ export default async function IntakeDetailPage({ params }: PageProps) {
     !!user &&
     canManageResults(user.role) &&
     (user.role === "admin" || user.assignedCourseId === intake.courseId);
+
+  const intakePeriodWeeks = weeksBetweenDates(intake.startDate, intake.endDate);
 
   return (
     <div className="space-y-6">
@@ -241,13 +249,15 @@ export default async function IntakeDetailPage({ params }: PageProps) {
             <div className="flex items-center gap-3">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-sm text-muted-foreground">Duration</p>
-                <p>
-                  {new Date(intake.startDate).toLocaleDateString()} -{" "}
-                  {intake.endDate
-                    ? new Date(intake.endDate).toLocaleDateString()
-                    : "Ongoing"}
+                <p className="text-sm text-muted-foreground">
+                  Course period (start – end)
                 </p>
+                <p>{formatDatePeriod(intake.startDate, intake.endDate)}</p>
+                {intakePeriodWeeks != null && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {intakePeriodWeeks} weeks
+                  </p>
+                )}
               </div>
             </div>
 
@@ -373,7 +383,7 @@ export default async function IntakeDetailPage({ params }: PageProps) {
           <div>
             <CardTitle className="text-base">Enrolled Students</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              Download PDF or CSV of this course intake
+              Download Word, PDF, or CSV of this course intake
             </p>
           </div>
           <ExportButtons

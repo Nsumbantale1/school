@@ -25,6 +25,7 @@ export function BackupFridayReminder({
   const shouldRemind = shouldShowFridayBackupReminder(lastBackup);
   const [dismissed, setDismissed] = useState(false);
   const [notificationsOn, setNotificationsOn] = useState(false);
+  const [canAskNotifications, setCanAskNotifications] = useState(false);
 
   useEffect(() => {
     if (!shouldRemind || dismissed) return;
@@ -39,6 +40,7 @@ export function BackupFridayReminder({
     if (typeof Notification === "undefined") return;
 
     setNotificationsOn(Notification.permission === "granted");
+    setCanAskNotifications(Notification.permission === "default");
 
     if (Notification.permission !== "granted") return;
 
@@ -62,6 +64,7 @@ export function BackupFridayReminder({
 
     const permission = await Notification.requestPermission();
     setNotificationsOn(permission === "granted");
+    setCanAskNotifications(permission === "default");
 
     if (permission === "granted") {
       try {
@@ -100,19 +103,18 @@ export function BackupFridayReminder({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
-        {typeof Notification !== "undefined" &&
-          Notification.permission === "default" && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-amber-400 bg-white/80"
-              onClick={enableNotifications}
-            >
-              <Bell className="mr-1.5 h-3.5 w-3.5" />
-              Enable alerts
-            </Button>
-          )}
+        {canAskNotifications && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-amber-400 bg-white/80"
+            onClick={enableNotifications}
+          >
+            <Bell className="mr-1.5 h-3.5 w-3.5" />
+            Enable alerts
+          </Button>
+        )}
         {notificationsOn && (
           <span className="text-xs text-amber-800 dark:text-amber-200">
             Alerts enabled

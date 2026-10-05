@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { enrollments, results } from "../db/schema";
 import { eq } from "drizzle-orm";
-import { calculateGrade } from "./grades";
+import { calculateGrade, getGradeFromPercentage } from "./grades";
 import { parseBccRemarks, tpdfGradeToSystem } from "./bcc-report";
 import type { Grade } from "../db/schema";
 import { DEFAULT_PASSING_MARK } from "./passing-mark";
@@ -65,8 +65,16 @@ export async function recalculatePositions(intakeId: number): Promise<void> {
       (sum, r) => sum + parseFloat(r.maxMarks),
       0
     );
-    const averagePercentage =
-      totalMaxMarks > 0 ? (totalMarks / totalMaxMarks) * 100 : 0;
+    // bcc6 tabular sheets store weighted subject marks that already sum to ~TOTAL/100.
+    // Cohort-max "max_marks" must NOT be used as the denominator (it invents false fails).
+    const bcc6Tabular = enrollmentResults.some((r) =>
+      (r.remarks ?? "").startsWith("bcc6:")
+    );
+    const averagePercentage = bcc6Tabular
+      ? totalMarks
+      : totalMaxMarks > 0
+        ? (totalMarks / totalMaxMarks) * 100
+        : 0;
 
     enrollmentScores.push({
       enrollmentId: enrollment.enrollmentId,
@@ -102,13 +110,19 @@ export async function recalculatePositions(intakeId: number): Promise<void> {
     // Calculate overall grade based on average
     const grade: Grade | null =
       score.resultCount > 0
-        ? score.bccGrade ??
-          calculateGrade(score.totalMarks, score.totalMaxMarks)
+        ? score.bccGrade ?? getGradeFromPercentage(score.averagePercentage)
         : null;
 
     const academicStatus =
       score.resultCount > 0
-        ? academicStatusFromAverage(score.averagePercentage, DEFAULT_PASSING_MARK)
+        ? grade != null && grade !== "F"
+          ? "completed"
+          : grade === "F"
+            ? "incomplete"
+            : academicStatusFromAverage(
+                score.averagePercentage,
+                DEFAULT_PASSING_MARK
+              )
         : null;
 
     const current = intakeEnrollments.find(
@@ -138,6 +152,72 @@ export async function recalculatePositions(intakeId: number): Promise<void> {
       .where(eq(enrollments.enrollmentId, score.enrollmentId));
 
     lastAverage = score.averagePercentage;
+  }
+}
+
+/**
+ * Rank positions from the *stored* averageMarks only.
+ * Does not recompute totals from subject rows (preserves Excel TOTAL).
+ * Higher average → better (lower) position; ties share the same position.
+ */
+export async function rankPositionsFromStoredAverages(
+  intakeId: number
+): Promise<void> {
+  const rows = await db
+    .select({
+      enrollmentId: enrollments.enrollmentId,
+      averageMarks: enrollments.averageMarks,
+      status: enrollments.status,
+    })
+    .from(enrollments)
+    .where(eq(enrollments.intakeId, intakeId));
+
+  if (rows.length === 0) return;
+
+  const ranked = rows
+    .map((r) => ({
+      enrollmentId: r.enrollmentId,
+      status: r.status,
+      avg:
+        r.averageMarks != null && r.averageMarks !== ""
+          ? parseFloat(String(r.averageMarks))
+          : NaN,
+    }))
+    .sort((a, b) => {
+      const aOk = Number.isFinite(a.avg);
+      const bOk = Number.isFinite(b.avg);
+      if (aOk && bOk) return b.avg - a.avg;
+      if (aOk) return -1;
+      if (bOk) return 1;
+      return 0;
+    });
+
+  let pos = 1;
+  let lastAvg: number | null = null;
+  let skip = 0;
+
+  for (const row of ranked) {
+    if (!Number.isFinite(row.avg)) {
+      await db
+        .update(enrollments)
+        .set({ position: null, updatedAt: new Date() })
+        .where(eq(enrollments.enrollmentId, row.enrollmentId));
+      continue;
+    }
+
+    if (lastAvg !== null && row.avg !== lastAvg) {
+      pos += skip;
+      skip = 1;
+    } else {
+      skip += 1;
+    }
+
+    await db
+      .update(enrollments)
+      .set({ position: pos, updatedAt: new Date() })
+      .where(eq(enrollments.enrollmentId, row.enrollmentId));
+
+    lastAvg = row.avg;
   }
 }
 
@@ -179,12 +259,20 @@ export async function recalculateEnrollmentMarks(
     (sum, r) => sum + parseFloat(r.maxMarks),
     0
   );
-  const averagePercentage =
-    totalMaxMarks > 0 ? (totalMarks / totalMaxMarks) * 100 : 0;
+  const bcc6Tabular = enrollmentResults.some((r) =>
+    (r.remarks ?? "").startsWith("bcc6:")
+  );
+  const averagePercentage = bcc6Tabular
+    ? totalMarks
+    : totalMaxMarks > 0
+      ? (totalMarks / totalMaxMarks) * 100
+      : 0;
 
   const grade =
     sofaGradeFromResults(enrollmentResults) ??
-    calculateGrade(totalMarks, totalMaxMarks);
+    (bcc6Tabular
+      ? getGradeFromPercentage(averagePercentage)
+      : calculateGrade(totalMarks, totalMaxMarks));
 
   const academicStatus = academicStatusFromAverage(
     averagePercentage,

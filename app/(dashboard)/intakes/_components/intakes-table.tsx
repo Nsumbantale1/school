@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable, type Column } from "@/components/data-table";
 import { formatIntakeLabel } from "@/lib/utils/intake-label";
 import { getCourseDisplayMeta } from "@/lib/utils/course-catalog";
+import { formatDateOnly } from "@/lib/utils/format-date";
 
 interface IntakeRow {
   intakeId: number;
@@ -63,8 +64,11 @@ const columns: Column<IntakeRow>[] = [
   },
   {
     key: "startDate",
-    header: "Start Date",
-    cell: (row) => new Date(row.startDate).toLocaleDateString("en-GB"),
+    header: "Period",
+    cell: (row) =>
+      `${formatDateOnly(row.startDate, "medium")}${
+        row.endDate ? ` – ${formatDateOnly(row.endDate, "medium")}` : " → …"
+      }`,
     sortable: true,
   },
   {

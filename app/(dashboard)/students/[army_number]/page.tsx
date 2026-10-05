@@ -422,7 +422,6 @@ export default async function StudentDetailPage({ params }: PageProps) {
                       <TableHead>Marks</TableHead>
                       <TableHead>Percentage</TableHead>
                       <TableHead>Grade</TableHead>
-                      <TableHead>Remarks</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -442,9 +441,6 @@ export default async function StudentDetailPage({ params }: PageProps) {
                           <TableCell>{percentage.toFixed(1)}%</TableCell>
                           <TableCell>
                             <GradeBadge grade={r.grade} />
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {r.remarks || "—"}
                           </TableCell>
                         </TableRow>
                       );

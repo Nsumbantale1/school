@@ -27,14 +27,11 @@ import {
 } from "lucide-react";
 import type { StudentServiceRecord } from "@/lib/utils/student-service-record";
 import { displayName } from "@/lib/utils/display-name";
+import { formatDateOnly } from "@/lib/utils/format-date";
 
 function formatDate(date: Date | string | null) {
   if (!date) return "—";
-  return new Date(date).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  return formatDateOnly(date, "long");
 }
 
 function SummaryStat({
@@ -410,7 +407,6 @@ export function ServiceRecordView({ record }: { record: StudentServiceRecord }) 
                     <TableHead>Marks</TableHead>
                     <TableHead>%</TableHead>
                     <TableHead>Grade</TableHead>
-                    <TableHead>Remarks</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -425,9 +421,6 @@ export function ServiceRecordView({ record }: { record: StudentServiceRecord }) 
                       <TableCell>{s.percentage.toFixed(1)}%</TableCell>
                       <TableCell>
                         <GradeBadge grade={s.grade} />
-                      </TableCell>
-                      <TableCell className="text-muted-foreground print:text-black">
-                        {s.remarks || "—"}
                       </TableCell>
                     </TableRow>
                   ))}

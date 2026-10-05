@@ -7,6 +7,7 @@ import {
   CalendarDays,
   UserRound,
 } from "lucide-react";
+import { formatDatePeriod } from "@/lib/utils/format-date";
 import { cn } from "@/lib/utils";
 import { formatIntakeLabel } from "@/lib/utils/intake-label";
 
@@ -20,20 +21,6 @@ export interface IntakeListItem {
   endDate: string | null;
   isActive: boolean;
   studentCount: number;
-}
-
-function formatPeriod(start: string, end: string | null): string {
-  const fmt = (iso: string) => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "2-digit",
-    });
-  };
-  if (!end) return `${fmt(start)} → …`;
-  return `${fmt(start)} → ${fmt(end)}`;
 }
 
 export function CourseIntakesList({
@@ -130,7 +117,7 @@ export function CourseIntakesList({
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <CalendarDays className="h-3.5 w-3.5 shrink-0 text-[#1a5c2e]/70 dark:text-[#7dcea0]" />
-                    {formatPeriod(intake.startDate, intake.endDate)}
+                    {formatDatePeriod(intake.startDate, intake.endDate)}
                   </span>
                   <span className="inline-flex items-center gap-1.5 truncate">
                     <UserRound className="h-3.5 w-3.5 shrink-0 text-[#1a5c2e]/70 dark:text-[#7dcea0]" />

@@ -1,4 +1,4 @@
-import { timingSafeEqualString } from "@/lib/utils/security-path";
+import { timingSafeEqualString } from "@/lib/utils/timing-safe";
 import { isUserRole, type SessionUser, type UserRole } from "./types";
 
 export type { SessionUser, UserRole };

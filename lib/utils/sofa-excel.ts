@@ -188,7 +188,7 @@ const COURSE_CATALOG: Array<{
   {
     match: /\bOBGC\b|\bOBG\b/,
     code: "OBGC",
-    name: "Observation Battery Gunnery Course",
+    name: "Officers Basic Gunnery Course",
   },
   {
     match: /\bROGC\b|\bROG\b|RO0G|ROOG/,
@@ -202,10 +202,19 @@ const COURSE_CATALOG: Array<{
   },
 ];
 
+/**
+ * SheetJS `cellDates` yields local midnight shifted by historical LMT seconds
+ * (e.g. 21 May → 20 May 23:59:44 in Africa/Dar_es_Salaam). Moving to local noon
+ * recovers the intended calendar day whatever the offset.
+ */
+function excelCalendarDay(value: Date): Date {
+  return new Date(value.getTime() + 12 * 60 * 60 * 1000);
+}
+
 function asText(value: unknown): string {
   if (value == null) return "";
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value
+    return excelCalendarDay(value)
       .toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
@@ -344,10 +353,11 @@ function isSubheaderRow(row: unknown[] | undefined): boolean {
 function parseSofaDate(value: unknown): string | null {
   if (value == null || value === "") return null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    // Excel dates are civil dates in East Africa (UTC+3). Node often
-    // stores them as UTC midnight of the previous calendar day.
-    const eat = new Date(value.getTime() + 3 * 60 * 60 * 1000);
-    return eat.toISOString().slice(0, 10);
+    const day = excelCalendarDay(value);
+    const y = day.getFullYear();
+    const m = day.getMonth() + 1;
+    const d = day.getDate();
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   }
   if (typeof value === "number" && Number.isFinite(value)) {
     const parsed = XLSX.SSF.parse_date_code(value);
@@ -382,8 +392,13 @@ function looksLikeDateValue(value: unknown): boolean {
 
 function weeksBetween(start: string, end: string | null): number {
   if (!end) return 16;
-  const a = new Date(start).getTime();
-  const b = new Date(end).getTime();
+  const parse = (iso: string) => {
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return NaN;
+    return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  };
+  const a = parse(start);
+  const b = parse(end);
   if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return 16;
   return Math.max(1, Math.round((b - a) / (7 * 24 * 60 * 60 * 1000)));
 }
@@ -397,8 +412,16 @@ function catalogFromText(text: string): { code: string; name: string } | null {
 }
 
 function batteryFromFilename(filename: string): string | null {
-  const m = filename.toUpperCase().match(/["']?([PQ])["']?\s*BTY/);
-  return m ? m[1] : null;
+  const n = filename.toUpperCase();
+  // Explicit P/Q BTY labels (modern workbooks)
+  const pq = n.match(/["']?([PQ])["']?\s*BTY/);
+  if (pq) return pq[1];
+  // Older battery names used as filenames / folder labels
+  if (/\bPAPAA?\b|\bPAPA\b/.test(n)) return "P";
+  if (/\bQUEBEC\b|\bQUIBECK\b|\bQUIBEC\b/.test(n)) return "Q";
+  if (/\bROMEO\b/.test(n)) return "R";
+  if (/\bTANGO\b/.test(n)) return "T";
+  return null;
 }
 
 function intakeFromFilename(filename: string): string | null {
@@ -423,10 +446,23 @@ function withBattery(intake: string, filename: string): string {
 
 function intakeFromDates(start: string | null, end: string | null): string {
   const fmt = (iso: string) => {
-    const d = new Date(iso);
-    const mon = d.toLocaleDateString("en-GB", { month: "short" }).toUpperCase();
-    const yy = String(d.getFullYear()).slice(-2);
-    return `${mon}${yy}`;
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return iso;
+    const mon = [
+      "JAN",
+      "FEB",
+      "MAR",
+      "APR",
+      "MAY",
+      "JUN",
+      "JUL",
+      "AUG",
+      "SEP",
+      "OCT",
+      "NOV",
+      "DEC",
+    ][Number(m[2]) - 1];
+    return `${mon}${m[1].slice(-2)}`;
   };
   if (start && end) return `${fmt(start)}-${fmt(end)}`;
   if (start) return fmt(start);
@@ -498,21 +534,37 @@ function parseStudentSheet(
   let tpdfGrade = "";
   let tpdfRemarks = "";
   let overallFromSheet: number | null = null;
+  let totalMarksPct: number | null = null;
 
   const startScan = Math.max(identityIdx + 2, courseIdx + 2, 0);
   for (let i = startScan; i < rows.length; i++) {
     const row = rows[i] ?? [];
     const name = asText(cell(row, 0));
     const joined = row.map((c) => asText(c)).join(" ").toUpperCase();
+    const hasMarks = [5, 6, 7, 8, 9].some((c) => asNumber(cell(row, c)) != null);
 
-    if (isFieldHeader(name) || isFieldHeader(joined)) {
+    if (!hasMarks && (isFieldHeader(name) || isFieldHeader(joined))) {
       inField = true;
+      continue;
+    }
+
+    if (/^TOTAL MARKS\b/i.test(name.replace(/\s+/g, " ").trim())) {
+      totalMarksPct =
+        asNumber(cell(row, 7)) ??
+        asNumber(cell(row, 8)) ??
+        asNumber(cell(row, 9)) ??
+        asNumber(cell(row, 5)) ??
+        totalMarksPct;
       continue;
     }
 
     const gradeLabel = name.toUpperCase();
     if (gradeLabel === "DARAJA" || gradeLabel === "GRADE") {
-      tpdfGrade = asText(cell(row, 7)) || asText(cell(row, 5)) || tpdfGrade;
+      tpdfGrade =
+        asText(cell(row, 8)) ||
+        asText(cell(row, 7)) ||
+        asText(cell(row, 5)) ||
+        tpdfGrade;
       continue;
     }
     if (
@@ -520,7 +572,11 @@ function parseStudentSheet(
       gradeLabel === "ASSESSMENT" ||
       gradeLabel === "REMARKS"
     ) {
-      tpdfRemarks = asText(cell(row, 7)) || asText(cell(row, 5)) || tpdfRemarks;
+      tpdfRemarks =
+        asText(cell(row, 8)) ||
+        asText(cell(row, 7)) ||
+        asText(cell(row, 5)) ||
+        tpdfRemarks;
       continue;
     }
 
@@ -598,6 +654,7 @@ function parseStudentSheet(
   }
 
   const overall =
+    (totalMarksPct != null && totalMarksPct > 0 ? totalMarksPct : null) ??
     overallFromSheet ??
     theory.reduce((s, r) => s + r.marks, 0) +
       field.reduce((s, r) => s + r.marks, 0);
@@ -660,10 +717,14 @@ function parseMatokeoTitleDates(title: string): {
     return iso;
   };
 
-  return {
-    startDate: parseOne(range[1]),
-    endDate: parseOne(range[2]),
-  };
+  const startDate = parseOne(range[1]);
+  let endDate = parseOne(range[2]);
+  // Titles often use 2-digit years; if end falls before start, roll end into next year.
+  if (startDate && endDate && endDate < startDate) {
+    const y = Number(endDate.slice(0, 4)) + 1;
+    endDate = `${y}${endDate.slice(4)}`;
+  }
+  return { startDate, endDate };
 }
 
 function parseMatokeoIntake(title: string, filename: string): string {

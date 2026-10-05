@@ -4,13 +4,13 @@
  *   spans two years     →  14/25-26
  */
 
+import { parseDateOnly } from "./format-date";
+
 function yyFromDate(
   value: string | Date | null | undefined
 ): number | null {
-  if (!value) return null;
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.getFullYear() % 100;
+  const p = parseDateOnly(value);
+  return p ? p.year % 100 : null;
 }
 
 function twoDigit(n: number): string {

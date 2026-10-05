@@ -30,6 +30,7 @@ SOFA-BACKUPS/
 
 # official Excel imports (student results)
 /data/imports/
+/data/*.json
 
 # uploaded student portraits
 /public/student-photos/

@@ -368,7 +368,6 @@ export default async function EnrollmentDetailPage({
                   <TableHead>Marks</TableHead>
                   <TableHead>Percentage</TableHead>
                   <TableHead>Grade</TableHead>
-                  <TableHead>Remarks</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -388,9 +387,6 @@ export default async function EnrollmentDetailPage({
                       <TableCell>{percentage.toFixed(1)}%</TableCell>
                       <TableCell>
                         {r.grade ? <GradeBadge grade={r.grade as Grade | null} /> : "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {r.remarks ?? "—"}
                       </TableCell>
                     </TableRow>
                   );

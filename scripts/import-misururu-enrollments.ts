@@ -66,8 +66,8 @@ const COURSE_MAP: Array<{
   {
     match: /\bOBG\b|\bOBGC\b/,
     code: "OBGC",
-    name: "Observation Battery Gunners Course",
-    weeks: 26,
+    name: "Officers Basic Gunnery Course",
+    weeks: 24,
   },
   {
     match: /\bROG\b|\bROGC\b/,

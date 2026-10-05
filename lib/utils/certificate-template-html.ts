@@ -1,12 +1,10 @@
 import type { CertificateData } from "./certificate-data";
+import { formatDateOnly } from "./format-date";
 
 function formatCertDate(value: string | Date | null | undefined): string {
   if (!value) return "";
-  const date = new Date(value);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = date.toLocaleDateString("en-GB", { month: "short" });
-  const year = String(date.getFullYear()).slice(-2);
-  return `${day} ${month} ${year}`;
+  const formatted = formatDateOnly(value, "cert");
+  return formatted === "—" ? "" : formatted;
 }
 
 function formatIntakeLabel(intakeNumber: string): string {

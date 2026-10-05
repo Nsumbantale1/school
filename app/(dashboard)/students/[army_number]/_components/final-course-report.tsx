@@ -18,6 +18,7 @@ import {
   type BccParsedReport,
 } from "@/lib/utils/bcc-report";
 import { displayName } from "@/lib/utils/display-name";
+import { formatDateOnly } from "@/lib/utils/format-date";
 
 export type FinalCourseReportProps = {
   forceNo: string;
@@ -40,13 +41,8 @@ export type FinalCourseReportProps = {
 
 function formatLongDate(value: string | Date | null): string {
   if (!value) return "—";
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).toUpperCase();
+  const formatted = formatDateOnly(value, "long");
+  return formatted === "—" ? String(value) : formatted.toUpperCase();
 }
 
 export function FinalCourseReport({

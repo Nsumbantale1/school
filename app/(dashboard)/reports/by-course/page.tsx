@@ -130,7 +130,10 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
       .from(enrollments)
       .innerJoin(students, eq(enrollments.studentArmyNumber, students.armyNumber))
       .where(eq(enrollments.intakeId, intakeId))
-      .orderBy(enrollments.position);
+      .orderBy(
+        sql`${enrollments.averageMarks} DESC NULLS LAST`,
+        sql`${enrollments.position} ASC NULLS LAST`
+      );
   }
 
   const exportColumns = [

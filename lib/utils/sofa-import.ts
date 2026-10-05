@@ -8,7 +8,7 @@ import {
   enrollments,
   results,
 } from "../db/schema";
-import { recalculatePositions } from "./positions";
+import { rankPositionsFromStoredAverages } from "./positions";
 import { tpdfGradeToSystem } from "./bcc-report";
 import { DEFAULT_PASSING_MARK } from "./passing-mark";
 import { academicStatusFromAverage } from "./enrollment-status";
@@ -31,10 +31,28 @@ export type SofaImportSummary = {
   intakeId: number;
 };
 
+/** Battery streams (P/Q/R/T) of one intake are stored as a single intake. */
+export function intakeNumberWithoutStream(intakeNumber: string): string {
+  return intakeNumber.trim().replace(/-[PQRT]$/i, "");
+}
+
+/** "P10130", "mt 128933'" → "P 10130", "MT 128933". Other formats are returned trimmed. */
+export function normalizeArmyNumber(armyNumber: string): string {
+  const cleaned = armyNumber.trim().replace(/['`]+$/g, "").trim();
+  const m = cleaned.match(/^([A-Za-z]{1,3})\s*(\d+)$/);
+  return m ? `${m[1].toUpperCase()} ${m[2]}` : cleaned;
+}
+
 export async function importParsedSofaWorkbook(
-  parsed: ParsedSofaWorkbook,
-  enteredBy?: number | null
+  input: ParsedSofaWorkbook,
+  enteredBy?: number | null,
+  options: { keepExistingStudentDetails?: boolean } = {}
 ): Promise<SofaImportSummary> {
+  const parsed = {
+    ...input,
+    intakeNumber: intakeNumberWithoutStream(input.intakeNumber),
+    students: input.students.map((s) => ({ ...s, armyNumber: normalizeArmyNumber(s.armyNumber) })),
+  };
   const [existingCourse] = await db
     .select()
     .from(courses)
@@ -155,7 +173,9 @@ export async function importParsedSofaWorkbook(
       .where(eq(students.armyNumber, student.armyNumber))
       .limit(1);
 
-    if (existingStudent) {
+    if (existingStudent && options.keepExistingStudentDetails) {
+      // Transcribed summaries carry short / misspelt names; keep the student record as is.
+    } else if (existingStudent) {
       await db
         .update(students)
         .set({
@@ -240,7 +260,32 @@ export async function importParsedSofaWorkbook(
     }
   }
 
-  await recalculatePositions(intakeId);
+  // Excel TOTAL MARKS (%) is authoritative for SOFA workbooks. Do not recompute
+  // averages from subject rows: the intake may also hold other streams' students.
+  for (const student of parsed.students) {
+    const overall = Math.min(100, student.overall);
+    const systemGrade = tpdfGradeToSystem(student.tpdfGrade);
+    const status =
+      academicStatusFromAverage(overall, DEFAULT_PASSING_MARK) ?? "completed";
+    await db
+      .update(enrollments)
+      .set({
+        totalMarks: overall.toFixed(2),
+        averageMarks: overall.toFixed(2),
+        grade: systemGrade,
+        status,
+        ceasedAt: status === "incomplete" ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(enrollments.intakeId, intakeId),
+          eq(enrollments.studentArmyNumber, student.armyNumber)
+        )
+      );
+  }
+
+  await rankPositionsFromStoredAverages(intakeId);
 
   return {
     filename: parsed.filename,
