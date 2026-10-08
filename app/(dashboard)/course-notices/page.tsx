@@ -24,11 +24,11 @@ export default async function CourseNoticesIndexPage() {
       durationWeeks: courses.durationWeeks,
       noticeCount: sql<number>`(
         SELECT COUNT(*) FROM course_notices
-        WHERE course_notices.course_id = ${courses.courseId}
+        WHERE course_notices.course_id = courses.course_id
       )`,
       exerciseCount: sql<number>`(
         SELECT COUNT(*) FROM course_exercises
-        WHERE course_exercises.course_id = ${courses.courseId}
+        WHERE course_exercises.course_id = courses.course_id
       )`,
     })
     .from(courses)

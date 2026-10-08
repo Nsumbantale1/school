@@ -19,28 +19,30 @@ import { canManageStudents } from "@/lib/auth/guards";
 import { getStudentPhotoPathMap } from "@/lib/utils/student-photo";
 
 export default async function StudentsPage() {
-  const user = await getSessionUser();
-  const data = await db
-    .select()
-    .from(students)
-    .where(eq(students.isActive, true))
-    .orderBy(students.fullName);
-
-  const enrollmentRows = await db
-    .select({
-      studentArmyNumber: enrollments.studentArmyNumber,
-      intakeId: courseIntakes.intakeId,
-      intakeNumber: courseIntakes.intakeNumber,
-      courseId: courses.courseId,
-      courseCode: courses.courseCode,
-      courseName: courses.courseName,
-    })
-    .from(enrollments)
-    .innerJoin(
-      courseIntakes,
-      eq(enrollments.intakeId, courseIntakes.intakeId),
-    )
-    .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId));
+  const [user, data, enrollmentRows, photoMap] = await Promise.all([
+    getSessionUser(),
+    db
+      .select()
+      .from(students)
+      .where(eq(students.isActive, true))
+      .orderBy(students.fullName),
+    db
+      .select({
+        studentArmyNumber: enrollments.studentArmyNumber,
+        intakeId: courseIntakes.intakeId,
+        intakeNumber: courseIntakes.intakeNumber,
+        courseId: courses.courseId,
+        courseCode: courses.courseCode,
+        courseName: courses.courseName,
+      })
+      .from(enrollments)
+      .innerJoin(
+        courseIntakes,
+        eq(enrollments.intakeId, courseIntakes.intakeId),
+      )
+      .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId)),
+    getStudentPhotoPathMap(),
+  ]);
 
   const enrollmentsByStudent = new Map<
     string,
@@ -76,8 +78,6 @@ export default async function StudentsPage() {
       });
     }
   }
-
-  const photoMap = await getStudentPhotoPathMap(data.map((s) => s.armyNumber));
 
   const tableData = data.map((s) => ({
     ...s,

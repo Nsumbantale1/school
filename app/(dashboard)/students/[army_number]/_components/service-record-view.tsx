@@ -128,7 +128,7 @@ export function ServiceRecordView({ record }: { record: StudentServiceRecord }) 
               </div>
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
-              <Badge variant={student.isActive ? "default" : "secondary"}>
+              <Badge variant={student.isActive ? "success" : "secondary"}>
                 {student.isActive ? "Active" : "Inactive"}
               </Badge>
               {activeBan.blocked && (

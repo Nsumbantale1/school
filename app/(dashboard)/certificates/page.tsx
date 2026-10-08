@@ -25,8 +25,8 @@ import { formatIntakeLabel } from "@/lib/utils/intake-label";
 
 function statusVariant(
   status: string
-): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "approved" || status === "issued") return "default";
+): "success" | "secondary" | "destructive" | "outline" {
+  if (status === "approved" || status === "issued") return "success";
   if (status === "rejected" || status === "cancelled") return "destructive";
   if (status.startsWith("pending")) return "secondary";
   return "outline";

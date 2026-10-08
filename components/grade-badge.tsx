@@ -3,11 +3,11 @@ import { cn } from "@/lib/utils";
 import type { Grade } from "@/lib/db/schema";
 
 const gradeColors: Record<Grade, string> = {
-  A: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-  B: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-  C: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
-  D: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
-  F: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+  A: "border-transparent bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 dark:bg-green-400/10 dark:text-green-300 dark:ring-green-400/25",
+  B: "border-transparent bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 dark:bg-blue-400/10 dark:text-blue-300 dark:ring-blue-400/25",
+  C: "border-transparent bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20 dark:bg-yellow-400/10 dark:text-yellow-300 dark:ring-yellow-400/25",
+  D: "border-transparent bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-600/20 dark:bg-orange-400/10 dark:text-orange-300 dark:ring-orange-400/25",
+  F: "border-transparent bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/25",
 };
 
 const gradeLabels: Record<Grade, string> = {

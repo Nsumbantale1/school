@@ -81,7 +81,7 @@ export default async function CourseNoticesDetailPage({
         maxMarks: courseSubjects.maxMarks,
         noticeCount: sql<number>`(
           SELECT COUNT(*) FROM course_notices
-          WHERE course_notices.subject_id = ${courseSubjects.subjectId}
+          WHERE course_notices.subject_id = course_subjects.subject_id
         )`,
       })
       .from(courseSubjects)

@@ -141,7 +141,6 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
     { key: "rank", header: "Rank" },
     { key: "fullName", header: "Name" },
     { key: "unit", header: "Unit" },
-    { key: "status", header: "Status" },
     { key: "averageMarks", header: "Average (%)" },
     { key: "grade", header: "Grade" },
     { key: "position", header: "Position" },

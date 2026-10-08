@@ -34,6 +34,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { PaletteSwitcher } from "@/components/palette-switcher";
 import { LogoutButton } from "@/components/logout-button";
 
 interface NavItem {
@@ -109,6 +110,12 @@ const navGroups: NavGroup[] = [
   },
 ];
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+
 interface AppSidebarProps {
   user: {
     name: string;
@@ -122,19 +129,32 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
   return (
     <Sidebar variant="inset">
-      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border px-4">
-        <div className="flex items-center gap-2">
-          <Image
-            src="/school-of-artillery.png"
-            alt="School of Artillery crest"
-            width={40}
-            height={31}
-            className="h-8 w-auto shrink-0 rounded-sm bg-white p-0.5"
-          />
-          <span className="text-sm font-semibold">School of Field Artillery</span>
-        </div>
+      <SidebarHeader className="px-3 pt-4 pb-3">
+        <Link
+          href="/dashboard"
+          className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-white/[0.04] p-2.5 pb-3 ring-1 ring-white/10 transition-colors hover:bg-white/[0.07]"
+        >
+          <span className="bg-regimental-ribbon absolute inset-x-0 bottom-0 h-[3px]" />
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-white p-1 shadow-sm">
+            <Image
+              src="/school-of-artillery.png"
+              alt="School of Artillery crest"
+              width={40}
+              height={31}
+              className="h-auto w-full"
+            />
+          </div>
+          <div className="min-w-0 leading-tight">
+            <p className="font-[family-name:var(--font-display)] text-[13px] leading-snug font-semibold text-white">
+              School of Field Artillery
+            </p>
+            <p className="mt-0.5 truncate text-[11px] font-medium uppercase tracking-[0.14em] text-sidebar-primary">
+              Training Records
+            </p>
+          </div>
+        </Link>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="px-1">
         {navGroups.map((group) => {
           const visibleItems = group.items.filter((item) => {
             if (item.roles) return item.roles.includes(user.role);
@@ -155,9 +175,11 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
           return (
             <SidebarGroup key={group.label}>
-              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+              <SidebarGroupLabel className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/45">
+                {group.label}
+              </SidebarGroupLabel>
               <SidebarGroupContent>
-                <SidebarMenu className="gap-1.5">
+                <SidebarMenu className="gap-0.5">
                   {visibleItems.map((item) => {
                     const isActive =
                       pathname === item.href ||
@@ -171,7 +193,11 @@ export function AppSidebar({ user }: AppSidebarProps) {
                         pathname.startsWith("/analytics/comparative"));
                     return (
                       <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton asChild isActive={isActive}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive}
+                          className="relative h-9 rounded-lg px-3 text-sidebar-foreground/75 transition-colors hover:text-white data-active:bg-gradient-to-r data-active:from-white/[0.11] data-active:to-white/[0.03] data-active:font-semibold data-active:text-white data-active:shadow-[inset_0_0_0_1px_oklch(1_0_0/0.06)] data-active:before:absolute data-active:before:inset-y-2 data-active:before:left-0 data-active:before:w-[3px] data-active:before:rounded-r-full data-active:before:bg-sidebar-primary data-active:[&_svg]:text-sidebar-primary"
+                        >
                           <Link href={item.href}>
                             <item.icon className="h-4 w-4" />
                             <span>{item.title}</span>
@@ -186,17 +212,23 @@ export function AppSidebar({ user }: AppSidebarProps) {
           );
         })}
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border p-3">
-        <div className="flex items-center gap-2 px-1">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{user.name}</p>
-            <p className="truncate text-xs text-sidebar-foreground/70 capitalize">
-              {user.role.replace(/_/g, " ")}
-            </p>
+      <SidebarFooter className="p-3">
+        <div className="rounded-xl bg-white/[0.04] p-2 ring-1 ring-white/10">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sidebar-primary to-highlight-deep text-xs font-bold text-sidebar-primary-foreground">
+              {initials(user.name)}
+            </div>
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="truncate text-sm font-semibold text-white">{user.name}</p>
+              <p className="truncate text-[11px] capitalize text-sidebar-foreground/60">
+                {user.role.replace(/_/g, " ")}
+              </p>
+            </div>
+            <PaletteSwitcher className="text-sidebar-foreground/70 hover:bg-white/10 hover:text-white" />
+            <ThemeToggle className="text-sidebar-foreground/70 hover:bg-white/10 hover:text-white" />
           </div>
-          <ThemeToggle />
+          <LogoutButton className="mt-1.5 h-8 w-full justify-start text-sidebar-foreground/70 hover:bg-white/10 hover:text-white" />
         </div>
-        <LogoutButton className="mt-2 w-full justify-start" />
       </SidebarFooter>
     </Sidebar>
   );

@@ -76,11 +76,12 @@ export async function getStudentPhotoPath(
   return row?.filePath ?? null;
 }
 
+/** Omit `armyNumbers` to load every student's photo in one small query. */
 export async function getStudentPhotoPathMap(
-  armyNumbers: string[]
+  armyNumbers?: string[]
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
-  if (armyNumbers.length === 0) return map;
+  if (armyNumbers && armyNumbers.length === 0) return map;
 
   const rows = await db
     .select({
@@ -90,7 +91,9 @@ export async function getStudentPhotoPathMap(
     .from(documents)
     .where(
       and(
-        inArray(documents.studentArmyNumber, armyNumbers),
+        armyNumbers
+          ? inArray(documents.studentArmyNumber, armyNumbers)
+          : undefined,
         eq(documents.description, STUDENT_PHOTO_DESCRIPTION)
       )
     )

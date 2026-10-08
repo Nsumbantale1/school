@@ -35,7 +35,6 @@ import { BackButton } from "@/components/back-button";
 import { formatIntakeLabel } from "@/lib/utils/intake-label";
 import { getCourseDisplayMeta } from "@/lib/utils/course-catalog";
 import { displayName } from "@/lib/utils/display-name";
-import { enrollmentStatusLabel } from "@/lib/utils/enrollment-status";
 import { IntakeLeadershipForm } from "../_components/intake-leadership-form";
 import { ExportButtons } from "@/components/export-buttons";
 import { ImportResultsForm } from "@/app/(dashboard)/results/import/_components/import-form";
@@ -126,7 +125,6 @@ export default async function IntakeDetailPage({ params }: PageProps) {
     { key: "rank", header: "Rank" },
     { key: "name", header: "Name" },
     { key: "unit", header: "Unit" },
-    { key: "status", header: "Status" },
     { key: "average", header: "Average" },
     { key: "grade", header: "Grade" },
     { key: "position", header: "Position" },
@@ -137,7 +135,6 @@ export default async function IntakeDetailPage({ params }: PageProps) {
     rank: e.rank,
     name: displayName(e.fullName),
     unit: e.unit ?? "—",
-    status: enrollmentStatusLabel(e.status),
     average: e.averageMarks
       ? `${parseFloat(e.averageMarks).toFixed(1)}%`
       : "—",
@@ -432,7 +429,10 @@ export default async function IntakeDetailPage({ params }: PageProps) {
                 </thead>
                 <tbody>
                   {intakeEnrollments.map((enrollment) => (
-                    <tr key={enrollment.enrollmentId} className="border-b hover:bg-muted/50">
+                    <tr
+                      key={enrollment.enrollmentId}
+                      className="relative cursor-pointer border-b hover:bg-muted/50"
+                    >
                       <td className="py-3 px-4 font-mono text-sm whitespace-nowrap">
                         {enrollment.armyNumber}
                       </td>
@@ -442,7 +442,7 @@ export default async function IntakeDetailPage({ params }: PageProps) {
                       <td className="py-3 pl-8 pr-4">
                         <Link
                           href={`/enrollments/${enrollment.enrollmentId}`}
-                          className="hover:underline font-medium tracking-wide"
+                          className="font-medium tracking-wide after:absolute after:inset-0 hover:underline"
                         >
                           {displayName(enrollment.fullName)}
                         </Link>

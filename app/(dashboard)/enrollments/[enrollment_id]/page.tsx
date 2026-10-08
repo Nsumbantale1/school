@@ -47,11 +47,20 @@ export default async function EnrollmentDetailPage({
 }) {
   const { enrollment_id } = await params;
   const enrollmentId = parseInt(enrollment_id);
-  const user = await getSessionUser();
-  const isAdmin = user?.role === "admin";
+  type EnrollmentResult = {
+    resultId: number;
+    subjectName: string;
+    marksObtained: string;
+    maxMarks: string;
+    grade: string | null;
+    remarks: string | null;
+    createdAt: Date;
+  };
 
-  const enrollmentData = await db
-    .select({
+  const [user, enrollmentData, enrollmentResults] = await Promise.all([
+    getSessionUser(),
+    db
+      .select({
       enrollmentId: enrollments.enrollmentId,
       studentArmyNumber: enrollments.studentArmyNumber,
       fullName: students.fullName,
@@ -78,7 +87,29 @@ export default async function EnrollmentDetailPage({
     .innerJoin(students, eq(enrollments.studentArmyNumber, students.armyNumber))
     .innerJoin(courseIntakes, eq(enrollments.intakeId, courseIntakes.intakeId))
     .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
-    .where(eq(enrollments.enrollmentId, enrollmentId));
+    .where(eq(enrollments.enrollmentId, enrollmentId)),
+    db
+      .select({
+        resultId: results.resultId,
+        subjectName: results.subjectName,
+        marksObtained: results.marksObtained,
+        maxMarks: results.maxMarks,
+        grade: results.grade,
+        remarks: results.remarks,
+        createdAt: results.createdAt,
+      })
+      .from(results)
+      .where(eq(results.enrollmentId, enrollmentId))
+      .orderBy(results.resultId)
+      .catch((error): EnrollmentResult[] => {
+        console.error("Failed to load enrollment results:", {
+          enrollmentId,
+          error,
+        });
+        return [];
+      }),
+  ]);
+  const isAdmin = user?.role === "admin";
 
   const enrollment = enrollmentData[0];
   if (!enrollment) notFound();
@@ -92,37 +123,6 @@ export default async function EnrollmentDetailPage({
   const canIssueCert =
     user && canManageResults(user.role) && certEligibility.eligible;
   const canEdit = user && canManageEnrollments(user.role);
-
-  let enrollmentResults: Array<{
-    resultId: number;
-    subjectName: string;
-    marksObtained: string;
-    maxMarks: string;
-    grade: string | null;
-    remarks: string | null;
-    createdAt: Date;
-  }> = [];
-
-  try {
-    enrollmentResults = await db
-      .select({
-        resultId: results.resultId,
-        subjectName: results.subjectName,
-        marksObtained: results.marksObtained,
-        maxMarks: results.maxMarks,
-        grade: results.grade,
-        remarks: results.remarks,
-        createdAt: results.createdAt,
-      })
-      .from(results)
-      .where(eq(results.enrollmentId, enrollmentId))
-      .orderBy(results.resultId);
-  } catch (error) {
-    console.error("Failed to load enrollment results:", {
-      enrollmentId,
-      error,
-    });
-  }
 
   const bccReport = parseBccResults(enrollmentResults);
   const photoPath = await getStudentPhotoPath(enrollment.studentArmyNumber);

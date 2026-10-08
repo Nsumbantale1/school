@@ -44,47 +44,48 @@ interface PageProps {
 export default async function StudentDetailPage({ params }: PageProps) {
   const { army_number: rawArmyNumber } = await params;
   const army_number = decodeArmyNumber(rawArmyNumber);
-  const user = await getSessionUser();
 
-  const [student] = await db
-    .select()
-    .from(students)
-    .where(eq(students.armyNumber, army_number))
-    .limit(1);
+  const [user, [student], photoPath, studentEnrollments] = await Promise.all([
+    getSessionUser(),
+    db
+      .select()
+      .from(students)
+      .where(eq(students.armyNumber, army_number))
+      .limit(1),
+    getStudentPhotoPath(army_number),
+    db
+      .select({
+        enrollmentId: enrollments.enrollmentId,
+        status: enrollments.status,
+        rankAtEnrollment: enrollments.rankAtEnrollment,
+        unitAtEnrollment: enrollments.unitAtEnrollment,
+        totalMarks: enrollments.totalMarks,
+        averageMarks: enrollments.averageMarks,
+        grade: enrollments.grade,
+        position: enrollments.position,
+        intakeId: enrollments.intakeId,
+        intakeNumber: courseIntakes.intakeNumber,
+        year: courseIntakes.year,
+        startDate: courseIntakes.startDate,
+        endDate: courseIntakes.endDate,
+        courseCode: courses.courseCode,
+        courseName: courses.courseName,
+      })
+      .from(enrollments)
+      .innerJoin(courseIntakes, eq(enrollments.intakeId, courseIntakes.intakeId))
+      .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
+      .where(eq(enrollments.studentArmyNumber, army_number))
+      .orderBy(courseIntakes.year),
+  ]);
 
   if (!student) {
     notFound();
   }
 
-  const photoPath = await getStudentPhotoPath(army_number);
-
-  const studentEnrollments = await db
-    .select({
-      enrollmentId: enrollments.enrollmentId,
-      status: enrollments.status,
-      rankAtEnrollment: enrollments.rankAtEnrollment,
-      unitAtEnrollment: enrollments.unitAtEnrollment,
-      totalMarks: enrollments.totalMarks,
-      averageMarks: enrollments.averageMarks,
-      grade: enrollments.grade,
-      position: enrollments.position,
-      intakeId: enrollments.intakeId,
-      intakeNumber: courseIntakes.intakeNumber,
-      year: courseIntakes.year,
-      startDate: courseIntakes.startDate,
-      endDate: courseIntakes.endDate,
-      courseCode: courses.courseCode,
-      courseName: courses.courseName,
-    })
-    .from(enrollments)
-    .innerJoin(courseIntakes, eq(enrollments.intakeId, courseIntakes.intakeId))
-    .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
-    .where(eq(enrollments.studentArmyNumber, army_number))
-    .orderBy(courseIntakes.year);
-
   const enrollmentIds = studentEnrollments.map((e) => e.enrollmentId);
+  const intakeIds = [...new Set(studentEnrollments.map((e) => e.intakeId))];
 
-  let allResults: Array<{
+  type SubjectResult = {
     resultId: number;
     enrollmentId: number;
     subjectName: string;
@@ -92,34 +93,46 @@ export default async function StudentDetailPage({ params }: PageProps) {
     maxMarks: string;
     grade: (typeof results.$inferSelect)["grade"];
     remarks: string | null;
-  }> = [];
+  };
 
-  if (enrollmentIds.length > 0) {
-    try {
-      allResults = await db
-        .select({
-          resultId: results.resultId,
-          enrollmentId: results.enrollmentId,
-          subjectName: results.subjectName,
-          marksObtained: results.marksObtained,
-          maxMarks: results.maxMarks,
-          grade: results.grade,
-          remarks: results.remarks,
-        })
-        .from(results)
-        .where(inArray(results.enrollmentId, enrollmentIds))
-        .orderBy(results.resultId);
-    } catch (error) {
-      console.error(
-        "Failed to load subject results for student detail page:",
-        {
-          armyNumber: army_number,
-          enrollmentIds,
-          error,
-        }
-      );
-    }
-  }
+  const [allResults, classSizeRows] = await Promise.all([
+    enrollmentIds.length === 0
+      ? Promise.resolve([] as SubjectResult[])
+      : db
+          .select({
+            resultId: results.resultId,
+            enrollmentId: results.enrollmentId,
+            subjectName: results.subjectName,
+            marksObtained: results.marksObtained,
+            maxMarks: results.maxMarks,
+            grade: results.grade,
+            remarks: results.remarks,
+          })
+          .from(results)
+          .where(inArray(results.enrollmentId, enrollmentIds))
+          .orderBy(results.resultId)
+          .catch((error): SubjectResult[] => {
+            console.error(
+              "Failed to load subject results for student detail page:",
+              { armyNumber: army_number, enrollmentIds, error }
+            );
+            return [];
+          }),
+    intakeIds.length === 0
+      ? Promise.resolve([] as { intakeId: number; n: number }[])
+      : db
+          .select({
+            intakeId: enrollments.intakeId,
+            n: sql<number>`count(*)::int`,
+          })
+          .from(enrollments)
+          .where(inArray(enrollments.intakeId, intakeIds))
+          .groupBy(enrollments.intakeId)
+          .catch((error) => {
+            console.error("Failed to load class sizes:", { intakeIds, error });
+            return [] as { intakeId: number; n: number }[];
+          }),
+  ]);
 
   const resultsByEnrollment = new Map<number, typeof allResults>();
   for (const result of allResults) {
@@ -135,29 +148,9 @@ export default async function StudentDetailPage({ params }: PageProps) {
     ])
   );
 
-  const reportIntakeIds = [
-    ...new Set(
-      studentEnrollments
-        .filter((e) => reportByEnrollment.get(e.enrollmentId))
-        .map((e) => e.intakeId)
-    ),
-  ];
-  const classSizeByIntake = new Map<number, number>();
-  for (const intakeId of reportIntakeIds) {
-    try {
-      const [row] = await db
-        .select({ n: sql<number>`count(*)::int` })
-        .from(enrollments)
-        .where(eq(enrollments.intakeId, intakeId));
-      classSizeByIntake.set(intakeId, Number(row?.n ?? 0));
-    } catch (error) {
-      console.error("Failed to load class size for intake:", {
-        intakeId,
-        error,
-      });
-      classSizeByIntake.set(intakeId, 0);
-    }
-  }
+  const classSizeByIntake = new Map<number, number>(
+    classSizeRows.map((r) => [r.intakeId, Number(r.n)])
+  );
 
   return (
     <div className="space-y-6">
@@ -287,7 +280,7 @@ export default async function StudentDetailPage({ params }: PageProps) {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Active</span>
-              <Badge variant={student.isActive ? "default" : "secondary"}>
+              <Badge variant={student.isActive ? "success" : "secondary"}>
                 {student.isActive ? "Yes" : "No"}
               </Badge>
             </div>
