@@ -21,6 +21,7 @@ import { auditCreate, auditUpdate } from "@/lib/utils/audit";
 import {
   getCertificateData,
   recordCertificateIssue,
+  type CertificateData,
 } from "@/lib/utils/certificate-data";
 import {
   enrollmentIsPrintAuthorized,
@@ -29,10 +30,26 @@ import {
   refreshRequestIssueStatus,
 } from "@/lib/utils/certificate-requests";
 import {
+  notifyAdminChiefInstructorApproved,
   notifyCertificateFullyApproved,
   notifyCertificatePendingChiefInstructor,
   notifyCertificatePendingCommandant,
 } from "@/lib/utils/notify";
+
+/** Stays well under the 16 pooled Neon connections in lib/db. */
+const PRINT_CONCURRENCY = 8;
+
+async function mapInChunks<T, R>(
+  list: T[],
+  size: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < list.length; i += size) {
+    results.push(...(await Promise.all(list.slice(i, i + size).map(fn))));
+  }
+  return results;
+}
 
 function revalidateCertPaths(requestId?: number) {
   revalidatePath("/certificates");
@@ -378,6 +395,12 @@ export async function approveCertificateRequest(requestId: number) {
       courseLabel: label,
       certificateCount: req.certificateCount,
     });
+    await notifyAdminChiefInstructorApproved({
+      requestId,
+      requestNumber: req.requestNumber,
+      courseLabel: label,
+      certificateCount: req.certificateCount,
+    });
 
     revalidateCertPaths(requestId);
     return {
@@ -566,6 +589,7 @@ export async function prepareCertificatesForRequest(
   const items = await db
     .select({
       enrollmentId: certificateRequestItems.enrollmentId,
+      studentArmyNumber: certificateRequestItems.studentArmyNumber,
       status: certificateRequestItems.status,
     })
     .from(certificateRequestItems)
@@ -576,24 +600,35 @@ export async function prepareCertificatesForRequest(
       )
     );
 
+  const byEnrollment = new Map(items.map((i) => [i.enrollmentId, i]));
   const wanted = enrollmentIds?.length
-    ? items.filter((i) => enrollmentIds.includes(i.enrollmentId))
-    : items.filter((i) => i.status === "pending" || i.status === "issued");
+    ? [...new Set(enrollmentIds)]
+        .map((id) => byEnrollment.get(id))
+        .filter((i): i is (typeof items)[number] => Boolean(i))
+    : items;
 
   if (wanted.length === 0) {
     return { success: false as const, error: "No certificates selected." };
   }
 
-  const dataList = [];
-  for (const item of wanted) {
-    const result = await getCertificateData(item.enrollmentId);
+  const prepared = await mapInChunks(wanted, PRINT_CONCURRENCY, async (item) => ({
+    item,
+    result: await getCertificateData(item.enrollmentId),
+  }));
+
+  const dataList: CertificateData[] = [];
+  for (const { item, result } of prepared) {
     if (!result.success) {
       return {
         success: false as const,
-        error: result.error ?? `Failed for enrollment ${item.enrollmentId}`,
+        error: `${item.studentArmyNumber}: ${result.error ?? "cannot prepare certificate."}`,
       };
     }
-    const recorded = await recordCertificateIssue(result.data, user.userId);
+    dataList.push(result.data);
+  }
+
+  await mapInChunks(dataList, PRINT_CONCURRENCY, async (data) => {
+    const recorded = await recordCertificateIssue(data, user.userId);
     await db
       .update(certificateRequestItems)
       .set({
@@ -604,11 +639,10 @@ export async function prepareCertificatesForRequest(
       .where(
         and(
           eq(certificateRequestItems.requestId, requestId),
-          eq(certificateRequestItems.enrollmentId, item.enrollmentId)
+          eq(certificateRequestItems.enrollmentId, data.enrollmentId)
         )
       );
-    dataList.push(result.data);
-  }
+  });
 
   await refreshRequestIssueStatus(requestId);
   revalidateCertPaths(requestId);

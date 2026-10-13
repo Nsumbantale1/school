@@ -17,20 +17,11 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, ClipboardCheck } from "lucide-react";
 import { CERT_REQUEST_STATUS_LABEL } from "@/lib/utils/certificate-requests";
 import { formatIntakeLabel } from "@/lib/utils/intake-label";
-
-function statusVariant(
-  status: string
-): "success" | "secondary" | "destructive" | "outline" {
-  if (status === "approved" || status === "issued") return "success";
-  if (status === "rejected" || status === "cancelled") return "destructive";
-  if (status.startsWith("pending")) return "secondary";
-  return "outline";
-}
+import { CertificateRequestsBrowser } from "./_components/requests-browser";
 
 export default async function CertificatesIndexPage() {
   const user = await getSessionUser();
@@ -50,7 +41,11 @@ export default async function CertificatesIndexPage() {
       submittedAt: certificateRequests.submittedAt,
       createdAt: certificateRequests.createdAt,
       courseCode: courses.courseCode,
+      courseName: courses.courseName,
       intakeNumber: courseIntakes.intakeNumber,
+      startDate: courseIntakes.startDate,
+      endDate: courseIntakes.endDate,
+      year: courseIntakes.year,
     })
     .from(certificateRequests)
     .innerJoin(courses, eq(certificateRequests.courseId, courses.courseId))
@@ -130,49 +125,26 @@ export default async function CertificatesIndexPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">Request</th>
-                <th className="px-3 py-2">Course / Intake</th>
-                <th className="px-3 py-2">Certificates</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Submitted</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t hover:bg-muted/30">
-                  <td className="px-3 py-2">
-                    <Link
-                      href={`/certificates/${r.id}`}
-                      className="font-medium text-primary underline-offset-2 hover:underline"
-                    >
-                      {r.requestNumber}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2">
-                    {r.courseCode} · {formatIntakeLabel({ intakeNumber: r.intakeNumber })}
-                  </td>
-                  <td className="px-3 py-2 tabular-nums font-semibold">
-                    {r.certificateCount}
-                  </td>
-                  <td className="px-3 py-2">
-                    <Badge variant={statusVariant(r.status)}>
-                      {CERT_REQUEST_STATUS_LABEL[r.status] ?? r.status}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {(r.submittedAt ?? r.createdAt)?.toLocaleDateString?.(
-                      "en-GB"
-                    ) ?? "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <CertificateRequestsBrowser
+          rows={rows.map((r) => ({
+            id: r.id,
+            requestNumber: r.requestNumber,
+            status: r.status,
+            statusLabel: CERT_REQUEST_STATUS_LABEL[r.status] ?? r.status,
+            certificateCount: r.certificateCount,
+            submittedLabel:
+              (r.submittedAt ?? r.createdAt)?.toLocaleDateString?.("en-GB") ??
+              "—",
+            courseCode: r.courseCode,
+            courseName: r.courseName,
+            intakeLabel: formatIntakeLabel({
+              intakeNumber: r.intakeNumber,
+              startDate: r.startDate,
+              endDate: r.endDate,
+              year: r.year,
+            }),
+          }))}
+        />
       )}
     </div>
   );

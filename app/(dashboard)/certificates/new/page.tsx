@@ -33,9 +33,16 @@ export default async function NewCertificateRequestPage() {
 
   const options = intakes.map((i) => {
     const meta = getCourseDisplayMeta(i.courseCode, i.courseName);
+    const intakeLabel = formatIntakeLabel({
+      intakeNumber: i.intakeNumber,
+      year: i.year,
+    });
     return {
-      intakeId: i.intakeId,
-      label: `${meta.label} · ${formatIntakeLabel({ intakeNumber: i.intakeNumber, year: i.year })} (${i.year})`,
+      value: String(i.intakeId),
+      label: `${meta.label} · ${intakeLabel} (${i.year})`,
+      courseCode: i.courseCode,
+      courseName: i.courseName,
+      intakeNumber: i.intakeNumber,
     };
   });
 

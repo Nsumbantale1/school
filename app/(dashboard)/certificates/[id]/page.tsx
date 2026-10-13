@@ -152,6 +152,7 @@ export default async function CertificateRequestDetailPage({
       {canPrint && (
         <BatchPrintButton
           requestId={request.id}
+          requestNumber={request.requestNumber}
           items={items.map((i) => ({
             enrollmentId: i.enrollmentId,
             studentArmyNumber: i.studentArmyNumber,

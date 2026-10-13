@@ -7,6 +7,8 @@ import { NotificationsBell } from "@/components/notifications-bell";
 import { getSessionUser } from "@/lib/auth";
 import { getLastBackupDate } from "@/lib/utils/backup-tracker";
 import { getUnreadNotifications } from "@/lib/utils/notify";
+import { listCertificateAlarms } from "@/lib/utils/certificate-requests";
+import { CertificateApprovalAlarm } from "@/components/certificate-approval-alarm";
 import { LogoutButton } from "@/components/logout-button";
 import { HeaderBreadcrumb } from "@/components/header-breadcrumb";
 
@@ -18,12 +20,16 @@ export default async function DashboardLayout({
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const [lastBackupAt, unread] = await Promise.all([
+  const [lastBackupAt, unread, alarms] = await Promise.all([
     user.role === "admin"
       ? getLastBackupDate().catch(() => null)
       : Promise.resolve(null),
     getUnreadNotifications(user.userId, 10).catch((error) => {
       console.warn("Notifications unavailable:", error);
+      return [];
+    }),
+    listCertificateAlarms(user.role).catch((error) => {
+      console.warn("Certificate alarms unavailable:", error);
       return [];
     }),
   ]);
@@ -59,6 +65,7 @@ export default async function DashboardLayout({
               lastBackupAt={lastBackupAt?.toISOString() ?? null}
             />
           )}
+          <CertificateApprovalAlarm alarms={alarms} />
           {children}
         </main>
       </SidebarInset>

@@ -11,6 +11,61 @@ import {
 } from "@/lib/db/schema";
 import { isEligibleForCertificate } from "@/lib/utils/certificate-data";
 
+export type CertificateAlarm = {
+  id: number;
+  href: string;
+  requestNumber: string;
+  courseLabel: string;
+  certificateCount: number;
+  tone: "waiting" | "ci_approved" | "ready";
+};
+
+/** What should shout at this user as soon as they open the system. */
+export async function listCertificateAlarms(role: string): Promise<CertificateAlarm[]> {
+  const wanted =
+    role === "chief_instructor"
+      ? ["pending_chief_instructor"]
+      : role === "commandant"
+        ? ["pending_commandant"]
+        : role === "admin"
+          ? ["pending_commandant", "approved", "partially_issued"]
+          : [];
+  if (wanted.length === 0) return [];
+
+  const rows = await db
+    .select({
+      id: certificateRequests.id,
+      requestNumber: certificateRequests.requestNumber,
+      status: certificateRequests.status,
+      certificateCount: certificateRequests.certificateCount,
+      courseCode: courses.courseCode,
+      intakeNumber: courseIntakes.intakeNumber,
+    })
+    .from(certificateRequests)
+    .innerJoin(courses, eq(certificateRequests.courseId, courses.courseId))
+    .innerJoin(
+      courseIntakes,
+      eq(certificateRequests.intakeId, courseIntakes.intakeId)
+    )
+    .where(inArray(certificateRequests.status, wanted))
+    .orderBy(desc(certificateRequests.updatedAt))
+    .limit(6);
+
+  return rows.map((row) => ({
+    id: row.id,
+    href: `/certificates/${row.id}`,
+    requestNumber: row.requestNumber,
+    courseLabel: `${row.courseCode} · ${row.intakeNumber}`,
+    certificateCount: row.certificateCount,
+    tone:
+      role === "admin" && row.status !== "pending_commandant"
+        ? "ready"
+        : role === "admin"
+          ? "ci_approved"
+          : "waiting",
+  }));
+}
+
 export const CERT_REQUEST_STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
   pending_chief_instructor: "Pending Chief Instructor",

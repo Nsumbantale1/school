@@ -79,6 +79,8 @@ function revalidateSubject(courseId: number, subjectId: number) {
 function revalidateCourse(courseId: number) {
   revalidatePath("/course-notices");
   revalidatePath(`/course-notices/${courseId}`);
+  revalidatePath("/weekly", "layout");
+  revalidatePath("/dashboard");
 }
 
 function resolveNoticeAttachment(attachmentPath: string): string | null {
@@ -234,6 +236,7 @@ export async function createCourseExercise(formData: FormData) {
 
   const courseId = parseInt(formData.get("courseId") as string);
   const weekNumber = parseInt(formData.get("weekNumber") as string);
+  const periodKind = formData.get("periodKind") === "month" ? "month" : "week";
   const title = (formData.get("title") as string)?.trim();
   const description = (formData.get("description") as string)?.trim() || null;
   const exerciseType = (formData.get("exerciseType") as string) || "other";
@@ -256,6 +259,7 @@ export async function createCourseExercise(formData: FormData) {
     .values({
       courseId,
       weekNumber,
+      periodKind,
       title,
       description,
       exerciseType: exerciseType as

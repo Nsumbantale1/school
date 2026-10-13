@@ -8,12 +8,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 import { Loader2, Send } from "lucide-react";
 import {
   createCertificateRequest,
@@ -21,8 +22,11 @@ import {
 } from "../actions";
 
 type IntakeOption = {
-  intakeId: number;
+  value: string;
   label: string;
+  courseCode: string;
+  courseName: string;
+  intakeNumber: string;
 };
 
 type StudentRow = {
@@ -49,6 +53,14 @@ export function NewCertificateRequestForm({
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [pending, setPending] = useState(false);
   const [intakeLabel, setIntakeLabel] = useState("");
+
+  function intakeMatches(item: IntakeOption, query: string) {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return `${item.label} ${item.courseCode} ${item.courseName} ${item.intakeNumber}`
+      .toLowerCase()
+      .includes(q);
+  }
 
   async function loadStudents(id: string) {
     setIntakeId(id);
@@ -112,20 +124,40 @@ export function NewCertificateRequestForm({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2 max-w-lg">
-        <Label>Intake</Label>
-        <Select value={intakeId} onValueChange={loadStudents}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select course intake…" />
-          </SelectTrigger>
-          <SelectContent>
-            {intakes.map((i) => (
-              <SelectItem key={i.intakeId} value={String(i.intakeId)}>
-                {i.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="max-w-lg space-y-2">
+        <Label htmlFor="intake-search">Course or intake</Label>
+        <Combobox
+          items={intakes}
+          filter={intakeMatches}
+          onValueChange={(item) => {
+            if (item) void loadStudents(item.value);
+          }}
+        >
+          <ComboboxInput
+            id="intake-search"
+            className="w-full"
+            placeholder="Search by course or intake…"
+          />
+          <ComboboxContent>
+            <ComboboxEmpty>No course or intake matches that search.</ComboboxEmpty>
+            <ComboboxList>
+              {(item: IntakeOption) => (
+                <ComboboxItem key={item.value} value={item}>
+                  <span className="flex min-w-0 flex-col py-0.5">
+                    <span className="truncate font-medium">{item.label}</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {item.courseCode}
+                      {item.courseName ? ` · ${item.courseName}` : ""}
+                    </span>
+                  </span>
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+          </ComboboxContent>
+        </Combobox>
+        <p className="text-xs text-muted-foreground">
+          Type a course name, course code, or intake number.
+        </p>
       </div>
 
       {loadingStudents && (

@@ -51,13 +51,14 @@ function SignatureCard({
 
   async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
     setPending(true);
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(form);
     const result = await uploadOfficialSignature(formData);
     setPending(false);
     if (result.success) {
       toast.success(`${config.title} signature uploaded.`);
-      e.currentTarget.reset();
+      form.reset();
     } else {
       toast.error(result.error ?? "Upload failed.");
     }
@@ -117,19 +118,15 @@ function SignatureCard({
                 Remove
               </Button>
             </div>
-            <div className="relative h-24 w-full max-w-xs bg-white rounded border">
+            <div className="relative h-40 w-full max-w-sm bg-white rounded border">
               <Image
                 src={current.signatureImagePath}
                 alt={`${config.title} signature`}
                 fill
-                className="object-contain p-2"
+                sizes="384px"
+                className="object-contain p-3"
               />
             </div>
-            {(current.fullName || current.rankTitle) && (
-              <p className="text-sm mt-2">
-                {current.rankTitle} {current.fullName}
-              </p>
-            )}
           </div>
         ) : (
           <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-3">

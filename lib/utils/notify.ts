@@ -126,6 +126,21 @@ export async function notifyCertificatePendingCommandant(opts: {
   });
 }
 
+export async function notifyAdminChiefInstructorApproved(opts: {
+  requestId: number;
+  requestNumber: string;
+  courseLabel: string;
+  certificateCount: number;
+}) {
+  return notifyUsersByRole({
+    roles: ["admin"],
+    title: `Chief Instructor approved — ${opts.requestNumber}`,
+    body: `Chief Instructor has approved ${opts.certificateCount} certificate(s) for ${opts.courseLabel}. Waiting for the Commandant.`,
+    href: `/certificates/${opts.requestId}`,
+    kind: "certificate_ci_approved",
+  });
+}
+
 export async function notifyCertificateFullyApproved(opts: {
   requestId: number;
   requestNumber: string;

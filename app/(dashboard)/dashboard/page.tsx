@@ -9,12 +9,13 @@ import {
   courseIntakes,
   type Grade,
 } from "@/lib/db/schema";
-import { eq, count, desc, and } from "drizzle-orm";
+import { eq, count, desc, and, gte } from "drizzle-orm";
 import {
   Users,
   BookOpen,
   ClipboardList,
   Calendar,
+  CalendarDays,
   Trophy,
   TrendingUp,
   UserPlus,
@@ -35,6 +36,13 @@ import { displayName } from "@/lib/utils/display-name";
 import { GradeBadge } from "@/components/grade-badge";
 import { getSessionUser } from "@/lib/auth";
 import { studentPath } from "@/lib/utils";
+import { formatIntakeLabel } from "@/lib/utils/intake-label";
+import { getCourseDisplayMeta } from "@/lib/utils/course-catalog";
+import {
+  currentTrainingMonth,
+  trainingMonths,
+  trainingWeekStatus,
+} from "@/lib/utils/training-week";
 
 export default async function DashboardPage() {
   const user = await getSessionUser();
@@ -47,6 +55,7 @@ export default async function DashboardPage() {
     totalIntakes,
     recentEnrollments,
     topPerformers,
+    weeklyIntakes,
   ] = await Promise.all([
     db
       .select({ count: count() })
@@ -106,7 +115,57 @@ export default async function DashboardPage() {
       )
       .orderBy(desc(enrollments.averageMarks))
       .limit(5),
+    db
+      .select({
+        intakeId: courseIntakes.intakeId,
+        intakeNumber: courseIntakes.intakeNumber,
+        year: courseIntakes.year,
+        startDate: courseIntakes.startDate,
+        endDate: courseIntakes.endDate,
+        courseCode: courses.courseCode,
+        courseName: courses.courseName,
+        durationWeeks: courses.durationWeeks,
+      })
+      .from(courseIntakes)
+      .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
+      .where(
+        and(
+          eq(courseIntakes.isActive, true),
+          eq(courses.isActive, true),
+          gte(courseIntakes.year, currentYear - 1)
+        )
+      ),
   ]);
+
+  const thisWeek = weeklyIntakes
+    .flatMap((intake) => {
+      const status = trainingWeekStatus({
+        startDate: intake.startDate,
+        endDate: intake.endDate,
+        durationWeeks: intake.durationWeeks,
+      });
+      if (status.phase !== "current") return [];
+      const meta = getCourseDisplayMeta(intake.courseCode, intake.courseName);
+      const totalMonths = trainingMonths(intake.durationWeeks);
+      return [
+        {
+          intakeId: intake.intakeId,
+          title: meta.label,
+          intakeLabel: formatIntakeLabel({
+            intakeNumber: intake.intakeNumber,
+            startDate: intake.startDate,
+            endDate: intake.endDate,
+            year: intake.year,
+          }),
+          week: status.week,
+          totalWeeks: status.totalWeeks,
+          month: currentTrainingMonth(status.week, totalMonths, status.phase),
+          totalMonths,
+        },
+      ];
+    })
+    .sort((a, b) => a.title.localeCompare(b.title))
+    .slice(0, 6);
 
   const totalStudents = studentCount[0]?.count ?? 0;
   const totalCourses = activeCourses[0]?.count ?? 0;
@@ -138,6 +197,7 @@ export default async function DashboardPage() {
     ...(user?.role === "admin" || user?.role === "instructor"
       ? [{ label: "Enter Results", href: "/results/new", icon: PenLine }]
       : []),
+    { label: "Weekly & Monthly Test", href: "/weekly", icon: CalendarDays },
     { label: "Presentations", href: "/presentations", icon: Presentation },
     { label: "Reports", href: "/reports", icon: FileBarChart },
     { label: "Analytics", href: "/analytics", icon: TrendingUp },
@@ -200,6 +260,61 @@ export default async function DashboardPage() {
         <StatCard title="Intakes This Year" value={intakeCount} description={`Opened in ${currentYear}`} icon={Calendar} tone="blue" />
         <StatCard title="Active Enrollments" value={enrollCount} description="Currently enrolled" icon={ClipboardList} tone="maroon" />
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between border-b">
+          <div>
+            <CardTitle className="flex items-center gap-2 font-semibold">
+              <CalendarDays className="h-4 w-4 text-primary" />
+              Weekly & Monthly Test
+            </CardTitle>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Current weekly test and monthly test for running intakes
+            </p>
+          </div>
+          <Button asChild variant="ghost" size="sm" className="text-primary">
+            <Link href="/weekly">
+              Open tests <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="px-2">
+          {thisWeek.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              No intake is in a training week right now.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {thisWeek.map((item) => (
+                <li key={item.intakeId}>
+                  <Link
+                    href={`/weekly/${item.intakeId}`}
+                    className="flex items-center gap-3 rounded-lg px-2 py-2.5 text-sm transition-colors hover:bg-accent/50"
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                      {item.week}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{item.title}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        Intake {item.intakeLabel}
+                      </p>
+                    </div>
+                    <span className="text-right text-xs tabular-nums text-muted-foreground">
+                      Week {item.week}/{item.totalWeeks}
+                      {item.totalMonths > 0 && (
+                        <span className="block">
+                          M-{item.month}/{item.totalMonths}
+                        </span>
+                      )}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

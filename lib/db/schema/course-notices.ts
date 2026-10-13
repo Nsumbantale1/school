@@ -61,6 +61,8 @@ export const courseExercises = pgTable(
       .notNull()
       .references(() => courses.courseId, { onDelete: "cascade" }),
     weekNumber: smallint("week_number").notNull(),
+    /** week = weekly test, month = monthly test */
+    periodKind: varchar("period_kind", { length: 16 }).notNull().default("week"),
     title: varchar("title", { length: 200 }).notNull(),
     description: text("description"),
     exerciseType: exerciseTypeEnum("exercise_type").notNull().default("other"),

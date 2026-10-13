@@ -17,7 +17,7 @@ import {
   History,
   FileText,
   HardDrive,
-  Megaphone,
+  CalendarDays,
   Presentation,
 } from "lucide-react";
 
@@ -63,7 +63,7 @@ const navGroups: NavGroup[] = [
     label: "Training",
     items: [
       { title: "Courses", href: "/courses", icon: BookOpen },
-      { title: "Course Notices", href: "/course-notices", icon: Megaphone },
+      { title: "Weekly & Monthly Test", href: "/weekly", icon: CalendarDays },
       { title: "Presentations", href: "/presentations", icon: Presentation },
       { title: "Intakes", href: "/intakes", icon: Calendar },
       { title: "Enrollments", href: "/enrollments", icon: ClipboardList },
