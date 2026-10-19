@@ -40,7 +40,7 @@ export default async function ComparativeAnalyticsPage({
     <div className="space-y-6">
       <PageHeader
         title="Comparative Analytics"
-        description="Compare two intakes, courses, or years side by side — pass rates, grades, and enrollment outcomes."
+        description="One record beside another: intake against intake, course against course, or year against year."
       >
         <BackButton fallbackHref="/analytics" />
       </PageHeader>

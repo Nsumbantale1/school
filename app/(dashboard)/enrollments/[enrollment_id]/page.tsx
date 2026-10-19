@@ -132,10 +132,10 @@ export default async function EnrollmentDetailPage({
       <PageHeader
         title={
           bccReport
-            ? `Final Course Report — ${enrollment.rankAtEnrollment} ${displayName(enrollment.fullName)}`
+            ? `Final Course Report — ${enrollment.rankAtEnrollment} ${displayName(enrollment.fullName, enrollment.courseCode, enrollment.courseName)}`
             : `Enrollment #${enrollment.enrollmentId}`
         }
-        description={`${enrollment.rankAtEnrollment} ${displayName(enrollment.fullName)} — ${enrollment.courseCode}`}
+        description={`${enrollment.rankAtEnrollment} ${displayName(enrollment.fullName, enrollment.courseCode, enrollment.courseName)} — ${enrollment.courseCode}`}
       >
         <PrintButton
           title={`Enrollment #${enrollment.enrollmentId} — ${enrollment.courseCode}`}
@@ -161,7 +161,7 @@ export default async function EnrollmentDetailPage({
         <FinalCourseReport
           forceNo={enrollment.studentArmyNumber}
           rank={enrollment.rankAtEnrollment}
-          fullName={displayName(enrollment.fullName)}
+          fullName={enrollment.fullName}
           unit={enrollment.unitAtEnrollment ?? enrollment.currentUnit}
           courseCode={enrollment.courseCode}
           courseName={enrollment.courseName}
@@ -191,7 +191,11 @@ export default async function EnrollmentDetailPage({
                   >
                     {enrollment.rankAtEnrollment}{" "}
                     <span className="tracking-wide">
-                      {displayName(enrollment.fullName)}
+                      {displayName(
+                        enrollment.fullName,
+                        enrollment.courseCode,
+                        enrollment.courseName
+                      )}
                     </span>
                   </Link>
                 </dd>

@@ -22,7 +22,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       <PageHeader
         title="Analytics"
-        description="Professional training intelligence — KPIs, trends, course & subject analysis with year and course filters."
+        description="Five comparisons of the training record: year, grade, course, intake, and subject."
       />
 
       <Suspense fallback={<div className="text-muted-foreground">Loading analytics…</div>}>

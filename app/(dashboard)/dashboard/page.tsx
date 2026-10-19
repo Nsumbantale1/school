@@ -343,7 +343,7 @@ export default async function DashboardPage() {
                       <Avatar name={e.fullName} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">
-                          {e.rank} {displayName(e.fullName)}
+                          {e.rank} {displayName(e.fullName, e.courseCode)}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
                           {e.courseCode} · Intake {e.intakeNumber}
@@ -400,7 +400,7 @@ export default async function DashboardPage() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">
-                          {p.rank} {displayName(p.fullName)}
+                          {p.rank} {displayName(p.fullName, p.courseCode)}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">{p.courseCode}</p>
                       </div>

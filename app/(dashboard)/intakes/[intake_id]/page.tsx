@@ -36,6 +36,8 @@ import { formatIntakeLabel } from "@/lib/utils/intake-label";
 import { getCourseDisplayMeta } from "@/lib/utils/course-catalog";
 import { displayName } from "@/lib/utils/display-name";
 import { IntakeLeadershipForm } from "../_components/intake-leadership-form";
+import { AddStudentsPanel } from "../_components/add-students-panel";
+import { OngoingStatusControl } from "../_components/ongoing-status-control";
 import { ExportButtons } from "@/components/export-buttons";
 import { ImportResultsForm } from "@/app/(dashboard)/results/import/_components/import-form";
 import { formatDatePeriod, weeksBetweenDates } from "@/lib/utils/format-date";
@@ -62,6 +64,7 @@ export default async function IntakeDetailPage({ params }: PageProps) {
         coordinatorName: courseIntakes.coordinatorName,
         startDate: courseIntakes.startDate,
         endDate: courseIntakes.endDate,
+        isActive: courseIntakes.isActive,
         courseId: courses.courseId,
         courseCode: courses.courseCode,
         courseName: courses.courseName,
@@ -75,6 +78,7 @@ export default async function IntakeDetailPage({ params }: PageProps) {
       .select({
         enrollmentId: enrollments.enrollmentId,
         status: enrollments.status,
+        ceasedAt: enrollments.ceasedAt,
         totalMarks: enrollments.totalMarks,
         averageMarks: enrollments.averageMarks,
         grade: enrollments.grade,
@@ -133,7 +137,7 @@ export default async function IntakeDetailPage({ params }: PageProps) {
   const pdfData = intakeEnrollments.map((e) => ({
     armyNumber: e.armyNumber,
     rank: e.rank,
-    name: displayName(e.fullName),
+    name: displayName(e.fullName, intake.courseCode, intake.courseName),
     unit: e.unit ?? "—",
     average: e.averageMarks
       ? `${parseFloat(e.averageMarks).toFixed(1)}%`
@@ -161,6 +165,12 @@ export default async function IntakeDetailPage({ params }: PageProps) {
     canManageResults(user.role) &&
     (user.role === "admin" || user.assignedCourseId === intake.courseId);
 
+  const canAddStudents = !!user && canManageEnrollments(user.role);
+  const today = new Date().toISOString().slice(0, 10);
+  const courseStillOpen =
+    intake.isActive && (!intake.endDate || intake.endDate >= today);
+  const canSetOutcome = user?.role === "admin" && courseStillOpen;
+
   const intakePeriodWeeks = weeksBetweenDates(intake.startDate, intake.endDate);
 
   return (
@@ -169,11 +179,11 @@ export default async function IntakeDetailPage({ params }: PageProps) {
         title={`${courseLabel} · ${intakeLabel}`}
         description={intake.courseName}
       >
-        {user && canManageEnrollments(user.role) && (
+        {canAddStudents && (
           <Button asChild>
-            <Link href={`/enrollments/new?courseId=${intake.courseId}&intakeId=${intakeId}`}>
+            <Link href="#add-students">
               <Plus className="mr-2 h-4 w-4" />
-              Enroll Student
+              Add Students
             </Link>
           </Button>
         )}
@@ -191,6 +201,7 @@ export default async function IntakeDetailPage({ params }: PageProps) {
           filename={pdfFilename}
           title={pdfTitle}
           subtitle={pdfSubtitle}
+          excelHref={`/api/intakes/${intakeId}/excel`}
         />
         <BackButton fallbackHref={`/courses/${intake.courseId}`} />
       </PageHeader>
@@ -357,6 +368,13 @@ export default async function IntakeDetailPage({ params }: PageProps) {
         </Card>
       )}
 
+      {canAddStudents && (
+        <AddStudentsPanel
+          intakeId={intakeId}
+          intakeLabel={`${intake.courseCode} ${intakeLabel}`}
+        />
+      )}
+
       {canImportMarks && (
         <section id="import-results" className="scroll-mt-6">
           <ImportResultsForm
@@ -380,7 +398,9 @@ export default async function IntakeDetailPage({ params }: PageProps) {
           <div>
             <CardTitle className="text-base">Enrolled Students</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              Download Word, PDF, or CSV of this course intake
+              {canSetOutcome
+                ? "This course is enrolled or still running. Set a student to Failed, CT, or CT for indiscipline. A cease date is required."
+                : "Download Word, PDF, CSV, or Excel (all subject marks) of this course intake"}
             </p>
           </div>
           <ExportButtons
@@ -389,6 +409,7 @@ export default async function IntakeDetailPage({ params }: PageProps) {
             filename={pdfFilename}
             title={pdfTitle}
             subtitle={pdfSubtitle}
+            excelHref={`/api/intakes/${intakeId}/excel`}
           />
         </CardHeader>
         <CardContent>
@@ -425,13 +446,18 @@ export default async function IntakeDetailPage({ params }: PageProps) {
                     <th className="text-left py-3 px-4 font-medium whitespace-nowrap">
                       Position
                     </th>
+                    {canSetOutcome && (
+                      <th className="text-left py-3 px-4 font-medium whitespace-nowrap">
+                        Set status
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {intakeEnrollments.map((enrollment) => (
                     <tr
                       key={enrollment.enrollmentId}
-                      className="relative cursor-pointer border-b hover:bg-muted/50"
+                      className="relative border-b hover:bg-muted/50"
                     >
                       <td className="py-3 px-4 font-mono text-sm whitespace-nowrap">
                         {enrollment.armyNumber}
@@ -442,9 +468,13 @@ export default async function IntakeDetailPage({ params }: PageProps) {
                       <td className="py-3 pl-8 pr-4">
                         <Link
                           href={`/enrollments/${enrollment.enrollmentId}`}
-                          className="font-medium tracking-wide after:absolute after:inset-0 hover:underline"
+                          className="font-medium tracking-wide hover:underline"
                         >
-                          {displayName(enrollment.fullName)}
+                          {displayName(
+                            enrollment.fullName,
+                            intake.courseCode,
+                            intake.courseName
+                          )}
                         </Link>
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
@@ -467,6 +497,19 @@ export default async function IntakeDetailPage({ params }: PageProps) {
                           totalStudents={totalStudents}
                         />
                       </td>
+                      {canSetOutcome && (
+                        <td className="py-3 px-4">
+                          <OngoingStatusControl
+                            enrollmentId={enrollment.enrollmentId}
+                            status={enrollment.status}
+                            ceasedAt={
+                              enrollment.ceasedAt
+                                ? enrollment.ceasedAt.toISOString()
+                                : null
+                            }
+                          />
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

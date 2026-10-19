@@ -50,13 +50,29 @@ async function sendEmailSmtp(opts: {
   }
 }
 
-export async function notifyUsersByRole(opts: {
-  roles: UserRole[];
+export function isEmailConfigured(): boolean {
+  return Boolean(
+    process.env.SMTP_HOST &&
+      process.env.SMTP_USER &&
+      process.env.SMTP_PASS &&
+      (process.env.SMTP_FROM || process.env.SMTP_USER)
+  );
+}
+
+export async function sendEmail(opts: { to: string; subject: string; text: string }) {
+  return sendEmailSmtp(opts);
+}
+
+export { appBaseUrl };
+
+type NotificationContent = {
   title: string;
   body: string;
   href: string;
   kind?: string;
-}) {
+};
+
+export async function notifyUsersByRole(opts: NotificationContent & { roles: UserRole[] }) {
   const recipients = await db
     .select({
       id: users.id,
@@ -68,7 +84,23 @@ export async function notifyUsersByRole(opts: {
     .where(
       and(eq(users.isActive, true), inArray(users.role, opts.roles))
     );
+  return deliver(recipients, opts);
+}
 
+export async function notifyUserIds(opts: NotificationContent & { userIds: number[] }) {
+  const ids = [...new Set(opts.userIds)];
+  if (ids.length === 0) return { notified: 0, emailed: 0 };
+  const recipients = await db
+    .select({ id: users.id, email: users.email })
+    .from(users)
+    .where(and(eq(users.isActive, true), inArray(users.id, ids)));
+  return deliver(recipients, opts);
+}
+
+async function deliver(
+  recipients: Array<{ id: number; email: string | null }>,
+  opts: NotificationContent
+) {
   if (recipients.length === 0) return { notified: 0, emailed: 0 };
 
   await db.insert(appNotifications).values(

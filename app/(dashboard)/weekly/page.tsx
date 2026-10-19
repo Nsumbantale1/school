@@ -1,87 +1,53 @@
 export const dynamic = "force-dynamic";
 
-import { and, eq, gte } from "drizzle-orm";
+import { Barlow_Condensed } from "next/font/google";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { courseIntakes, courses } from "@/lib/db/schema";
+import { courses } from "@/lib/db/schema";
 import { PageHeader } from "@/components/page-header";
 import { BackButton } from "@/components/back-button";
-import { formatDatePeriod } from "@/lib/utils/format-date";
-import { formatIntakeLabel } from "@/lib/utils/intake-label";
-import { getCourseDisplayMeta } from "@/lib/utils/course-catalog";
-import {
-  currentTrainingMonth,
-  trainingMonths,
-  trainingWeekStatus,
-} from "@/lib/utils/training-week";
-import { WeeklyIntakeList } from "./_components/weekly-intake-list";
+import { CoursesFolderGrid } from "@/app/(dashboard)/courses/_components/courses-folder-grid";
+
+const courseDisplay = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-course-display",
+});
 
 export default async function WeeklyPage() {
-  const currentYear = new Date().getFullYear();
-
-  const intakes = await db
+  const data = await db
     .select({
-      intakeId: courseIntakes.intakeId,
-      intakeNumber: courseIntakes.intakeNumber,
-      year: courseIntakes.year,
-      startDate: courseIntakes.startDate,
-      endDate: courseIntakes.endDate,
+      courseId: courses.courseId,
       courseCode: courses.courseCode,
       courseName: courses.courseName,
       durationWeeks: courses.durationWeeks,
+      passingMark: courses.passingMark,
+      intakeCount: sql<number>`(
+        SELECT COUNT(*) FROM course_intakes
+        WHERE course_intakes.course_id = courses.course_id
+      )`.as("intake_count"),
     })
-    .from(courseIntakes)
-    .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
-    .where(
-      and(
-        eq(courseIntakes.isActive, true),
-        eq(courses.isActive, true),
-        gte(courseIntakes.year, currentYear - 1)
-      )
-    );
+    .from(courses)
+    .where(eq(courses.isActive, true))
+    .orderBy(courses.courseCode);
 
-  const items = intakes.flatMap((intake) => {
-    const status = trainingWeekStatus({
-      startDate: intake.startDate,
-      endDate: intake.endDate,
-      durationWeeks: intake.durationWeeks,
-    });
-    if (status.phase === "completed") return [];
-    if (status.phase === "upcoming" && intake.year < currentYear) return [];
-    const meta = getCourseDisplayMeta(intake.courseCode, intake.courseName);
-    const totalMonths = trainingMonths(intake.durationWeeks);
-    const month = currentTrainingMonth(status.week, totalMonths, status.phase);
-    return [
-      {
-        intakeId: intake.intakeId,
-        title: meta.label,
-        courseCode: intake.courseCode,
-        courseName: intake.courseName,
-        intakeLabel: formatIntakeLabel({
-          intakeNumber: intake.intakeNumber,
-          startDate: intake.startDate,
-          endDate: intake.endDate,
-          year: intake.year,
-        }),
-        intakeNumber: intake.intakeNumber,
-        week: status.week,
-        totalWeeks: status.totalWeeks,
-        month,
-        totalMonths,
-        phase: status.phase,
-        period: formatDatePeriod(intake.startDate, intake.endDate),
-      },
-    ];
-  });
+  const folders = data.map((row) => ({
+    ...row,
+    intakeCount: Number(row.intakeCount) || 0,
+  }));
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-8 ${courseDisplay.variable}`}>
       <PageHeader
         title="Weekly & Monthly Test"
-        description="Progress chart — weekly tests, then a monthly test after every three weeks"
+        description="Open a course folder to view its intakes"
       >
         <BackButton fallbackHref="/dashboard" />
       </PageHeader>
-      <WeeklyIntakeList items={items} />
+      <CoursesFolderGrid
+        data={folders}
+        folderBase="/weekly/course"
+      />
     </div>
   );
 }

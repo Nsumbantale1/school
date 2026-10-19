@@ -5,7 +5,7 @@ import { officialSignatures, users } from "@/lib/db/schema";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
 import { BackButton } from "@/components/back-button";
-import { requireRole } from "@/lib/auth/guards";
+import { requireRole, VIEW_ALL_ROLES } from "@/lib/auth/guards";
 import { SignatureManager } from "./_components/signature-manager";
 import { OfficialContactEmails } from "./_components/official-contact-emails";
 
@@ -25,7 +25,8 @@ async function getActiveOfficial(role: "chief_instructor" | "commandant") {
 }
 
 export default async function CertificateSignaturesPage() {
-  await requireRole(["admin"]);
+  const user = await requireRole(VIEW_ALL_ROLES);
+  const readOnly = user.role !== "admin";
 
   const [chiefInstructor, commandant, officials] = await Promise.all([
     getActiveOfficial("chief_instructor"),
@@ -54,9 +55,10 @@ export default async function CertificateSignaturesPage() {
       <SignatureManager
         chiefInstructor={chiefInstructor}
         commandant={commandant}
+        readOnly={readOnly}
       />
 
-      <OfficialContactEmails officials={officials} />
+      <OfficialContactEmails officials={officials} readOnly={readOnly} />
     </div>
   );
 }

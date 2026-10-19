@@ -9,6 +9,11 @@ import { checkPrerequisites } from "@/lib/utils/prerequisites";
 import { checkIndisciplineBan } from "@/lib/utils/indiscipline-ban";
 import { recalculatePositions } from "@/lib/utils/positions";
 import { auditCreate, auditUpdate, auditDelete, getChangedFields } from "@/lib/utils/audit";
+import {
+  countEnrollmentsWithMarks,
+  createResultChangeRequest,
+  openChangeForEnrollment,
+} from "@/lib/utils/result-changes";
 
 export async function createEnrollment(formData: FormData) {
   const user = await requireRole(["admin"]);
@@ -173,6 +178,40 @@ export async function updateEnrollment(enrollmentId: number, formData: FormData)
     position = p;
   }
 
+  // Recorded marks only change through CI → Commandant approval.
+  const hadMarks =
+    existing.averageMarks != null || existing.grade != null || existing.position != null;
+  const marksChanged =
+    (existing.averageMarks == null) !== (averageMarks == null) ||
+    (averageMarks != null && Math.abs(Number(existing.averageMarks) - Number(averageMarks)) >= 0.005) ||
+    (existing.grade ?? null) !== grade ||
+    (existing.position ?? null) !== position;
+  const needsApproval = hadMarks && marksChanged;
+  const changeReason = String(formData.get("changeReason") ?? "").trim();
+
+  if (needsApproval) {
+    if (changeReason.length < 5) {
+      return {
+        success: false,
+        error:
+          "Average, grade and position are already recorded. Give a reason so the change can be sent to the Chief Instructor and Commandant for approval.",
+      };
+    }
+    const openRequest = await openChangeForEnrollment(enrollmentId);
+    if (openRequest) {
+      return {
+        success: false,
+        error: `A change to this student's marks is already waiting for approval (${openRequest.requestNumber}).`,
+      };
+    }
+  }
+  const requested = { averageMarks, grade, position };
+  if (needsApproval) {
+    averageMarks = existing.averageMarks;
+    grade = existing.grade;
+    position = existing.position;
+  }
+
   // Below pass mark → force CT ceased training
   let finalStatus = status;
   let finalGrade = grade;
@@ -184,7 +223,9 @@ export async function updateEnrollment(enrollmentId: number, formData: FormData)
     averageMarks != null &&
     parseFloat(averageMarks) < 55 &&
     status !== "indiscipline" &&
-    status !== "withdrawn"
+    status !== "withdrawn" &&
+    status !== "failed" &&
+    status !== "incomplete"
   ) {
     finalStatus = "incomplete";
     finalGrade = finalGrade ?? "F";
@@ -199,14 +240,41 @@ export async function updateEnrollment(enrollmentId: number, formData: FormData)
         unitAtEnrollment: unitRaw || null,
         status: finalStatus,
         ceasedAt: finalCeasedAt,
-        // Keep totalMarks aligned with average (overall %) for imports that used both.
-        totalMarks: averageMarks,
-        averageMarks,
-        grade: finalGrade,
-        position,
+        ...(needsApproval
+          ? {}
+          : {
+              // Keep totalMarks aligned with average (overall %) for imports that used both.
+              totalMarks: averageMarks,
+              averageMarks,
+              grade: finalGrade,
+              position,
+            }),
         updatedAt: new Date(),
       })
       .where(eq(enrollments.enrollmentId, enrollmentId));
+
+    let changeRequest: { id: number; requestNumber: string } | null = null;
+    if (needsApproval) {
+      changeRequest = await createResultChangeRequest({
+        user,
+        intakeId: existing.intakeId,
+        source: "enrollment",
+        reason: changeReason,
+        items: [
+          {
+            kind: "enrollment_marks",
+            enrollmentId,
+            oldAverage: existing.averageMarks,
+            oldGrade: existing.grade,
+            oldPosition: existing.position,
+            newAverage: requested.averageMarks,
+            newGrade: requested.grade,
+            newPosition: requested.position,
+          },
+        ],
+      });
+      revalidatePath("/results/changes");
+    }
 
     const changes = getChangedFields(
       {
@@ -222,7 +290,7 @@ export async function updateEnrollment(enrollmentId: number, formData: FormData)
         unitAtEnrollment: unitRaw || null,
         status: finalStatus,
         averageMarks,
-        grade: finalGrade,
+        grade: needsApproval ? existing.grade : finalGrade,
         position,
       }
     );
@@ -236,6 +304,15 @@ export async function updateEnrollment(enrollmentId: number, formData: FormData)
       `/students/${encodeURIComponent(existing.studentArmyNumber)}`
     );
 
+    if (changeRequest) {
+      return {
+        success: true,
+        pendingApproval: true,
+        requestId: changeRequest.id,
+        requestNumber: changeRequest.requestNumber,
+        message: `Other details saved. The marks change was sent for approval as ${changeRequest.requestNumber} (Chief Instructor, then Commandant).`,
+      };
+    }
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -285,6 +362,7 @@ export async function updateEnrollmentStatus(enrollmentId: number, formData: For
       .update(enrollments)
       .set({
         status,
+        ...(status === "failed" && existing.grade == null ? { grade: "F" as const } : {}),
         ceasedAt:
           status === "incomplete" ||
           status === "indiscipline" ||
@@ -323,6 +401,14 @@ export async function deleteEnrollment(enrollmentId: number) {
 
   if (!existing) {
     return { success: false, error: "Enrollment not found." };
+  }
+
+  if ((await countEnrollmentsWithMarks({ enrollmentId })) > 0) {
+    return {
+      success: false,
+      error:
+        "This student has recorded marks. Remove the marks through a result-change request (Chief Instructor, then Commandant) before deleting the enrollment.",
+    };
   }
 
   try {

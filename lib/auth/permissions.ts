@@ -1,5 +1,15 @@
 import type { SessionUser, UserRole } from "./types";
 
+/**
+ * Chief Instructor and Commandant see every page an admin sees, read-only.
+ * Their only write action is approving certificate requests.
+ */
+export const VIEW_ALL_ROLES: UserRole[] = ["admin", "chief_instructor", "commandant"];
+
+export function canViewAllRecords(role: UserRole): boolean {
+  return VIEW_ALL_ROLES.includes(role);
+}
+
 /** Students: admin only can create/edit */
 export function canManageStudents(role: UserRole): boolean {
   return role === "admin";

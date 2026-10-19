@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/guards";
 import { auditCreate, auditUpdate, auditDelete, getChangedFields } from "@/lib/utils/audit";
+import { countEnrollmentsWithMarks } from "@/lib/utils/result-changes";
 
 export async function createIntake(formData: FormData) {
   const user = await requireRole(["admin"]);
@@ -13,6 +14,9 @@ export async function createIntake(formData: FormData) {
   const courseId = parseInt(formData.get("courseId") as string);
   const intakeNumber = formData.get("intakeNumber") as string;
   const year = parseInt(formData.get("year") as string);
+  if (!Number.isInteger(year) || year < 1960 || year > 2100) {
+    return { success: false, error: "Year must be between 1960 and 2100." };
+  }
   const commanderName = (formData.get("commanderName") as string) || null;
   const coordinatorName = (formData.get("coordinatorName") as string) || null;
   const startDate = formData.get("startDate") as string;
@@ -68,9 +72,14 @@ export async function updateIntake(intakeId: number, formData: FormData) {
     return { success: false, error: "Intake not found." };
   }
 
+  const year = parseInt(formData.get("year") as string);
+  if (!Number.isInteger(year) || year < 1960 || year > 2100) {
+    return { success: false, error: "Year must be between 1960 and 2100." };
+  }
+
   const newData = {
     intakeNumber: formData.get("intakeNumber") as string,
-    year: parseInt(formData.get("year") as string),
+    year,
     commanderName: (formData.get("commanderName") as string) || null,
     coordinatorName: (formData.get("coordinatorName") as string) || null,
     startDate: formData.get("startDate") as string,
@@ -156,6 +165,14 @@ export async function deleteIntake(intakeId: number) {
 
   if (!existing) {
     return { success: false, error: "Intake not found." };
+  }
+
+  const withMarks = await countEnrollmentsWithMarks({ intakeId });
+  if (withMarks > 0) {
+    return {
+      success: false,
+      error: `${withMarks} student(s) in this intake have recorded marks. Deleting the intake would erase results, which needs Chief Instructor and Commandant approval.`,
+    };
   }
 
   try {

@@ -42,6 +42,14 @@ export type UserRow = {
 
 type CourseOption = { id: number; code: string; name: string };
 
+export type ResetRequest = {
+  userId: number;
+  name: string;
+  username: string;
+  role: UserRole;
+  createdAt: string;
+};
+
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Administrator",
   instructor: "Instructor",
@@ -88,14 +96,23 @@ export function UsersManager({
   users,
   courses,
   currentUserId,
+  readOnly = false,
+  resetRequests = [],
+  initialResetUserId,
 }: {
   users: UserRow[];
   courses: CourseOption[];
   currentUserId: number;
+  readOnly?: boolean;
+  resetRequests?: ResetRequest[];
+  initialResetUserId?: number;
 }) {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | UserRole>("all");
-  const [dialog, setDialog] = useState<DialogState>(null);
+  const [dialog, setDialog] = useState<DialogState>(() => {
+    const target = readOnly ? undefined : users.find((u) => u.id === initialResetUserId);
+    return target ? { kind: "password", user: target } : null;
+  });
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [, startToggle] = useTransition();
 
@@ -125,6 +142,38 @@ export function UsersManager({
   }
 
   return (
+    <>
+    {resetRequests.length > 0 && (
+      <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950">
+        <p className="flex items-center gap-2 text-sm font-semibold">
+          <KeyRound className="size-4" />
+          Forgotten passwords waiting for a new password
+        </p>
+        <ul className="mt-2 space-y-1.5">
+          {resetRequests.map((r) => {
+            const target = users.find((u) => u.id === r.userId);
+            return (
+              <li key={r.userId} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span>
+                  {r.name} <span className="text-amber-800">@{r.username}</span> ·{" "}
+                  {ROLE_LABELS[r.role]} · asked {new Date(r.createdAt).toLocaleString("en-GB")}
+                </span>
+                {!readOnly && target && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 bg-white"
+                    onClick={() => setDialog({ kind: "password", user: target })}
+                  >
+                    Set new password
+                  </Button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    )}
     <Card className="gap-0 py-0">
       <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-col gap-2 sm:flex-row">
@@ -151,10 +200,12 @@ export function UsersManager({
             ))}
           </select>
         </div>
-        <Button onClick={() => setDialog({ kind: "create" })}>
-          <Plus className="size-4" />
-          New user
-        </Button>
+        {!readOnly && (
+          <Button onClick={() => setDialog({ kind: "create" })}>
+            <Plus className="size-4" />
+            New user
+          </Button>
+        )}
       </div>
 
       <Table>
@@ -165,13 +216,13 @@ export function UsersManager({
             <TableHead>Course</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Last login</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            {!readOnly && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
           {filtered.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+              <TableCell colSpan={readOnly ? 5 : 6} className="py-10 text-center text-muted-foreground">
                 No users match your search.
               </TableCell>
             </TableRow>
@@ -222,6 +273,7 @@ export function UsersManager({
                   </span>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{formatDate(u.lastLogin)}</TableCell>
+                {!readOnly && (
                 <TableCell>
                   <div className="flex justify-end gap-1">
                     <Button
@@ -259,6 +311,7 @@ export function UsersManager({
                     </Button>
                   </div>
                 </TableCell>
+                )}
               </TableRow>
             ))
           )}
@@ -284,6 +337,7 @@ export function UsersManager({
         </DialogContent>
       </Dialog>
     </Card>
+    </>
   );
 }
 

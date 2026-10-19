@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { studentPath } from "@/lib/utils";
-import { displayName } from "@/lib/utils/display-name";
+import { displayName, type NameOrder } from "@/lib/utils/display-name";
 
 interface StudentRow {
   armyNumber: string;
@@ -25,6 +25,7 @@ interface StudentRow {
   photoPath?: string | null;
   isActive: boolean;
   enrollments: { courseId: number; intakeId: number }[];
+  nameOrder?: NameOrder;
 }
 
 interface CourseOption {
@@ -72,7 +73,9 @@ const columns: Column<StudentRow>[] = [
     key: "fullName",
     header: "Full Name",
     cell: (row) => (
-      <span className="tracking-wide">{displayName(row.fullName)}</span>
+      <span className="tracking-wide">
+        {displayName(row.fullName, row.nameOrder)}
+      </span>
     ),
     sortable: true,
   },

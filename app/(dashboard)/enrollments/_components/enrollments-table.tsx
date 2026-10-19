@@ -67,7 +67,7 @@ const columns: Column<EnrollmentRow>[] = [
     header: "Student",
     cell: (row) => (
       <span className="tracking-wide">
-        {row.rank} {displayName(row.fullName)}
+        {row.rank} {displayName(row.fullName, row.courseCode, row.courseName)}
       </span>
     ),
     sortable: true,

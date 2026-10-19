@@ -31,38 +31,40 @@ type CertificateLayout = {
   dateRight: Box;
 };
 
+/** Measured on page 1 of CHETI ASKARI B.doc (the official askari certificate). */
 const ASKARI: CertificateLayout = {
-  army: { x: 120, y: 410.8, w: 87.8 },
-  rank: { x: 238.4, y: 410.8, w: 39.8 },
-  name: { x: 348, y: 410.8, w: 189.8 },
-  course: { x: 72, y: 324.3, w: 468 },
-  intake: { x: 72.3, y: 287.4, w: 467.2 },
-  school: { x: 72.3, y: 215.1, w: 467.2 },
-  from: { x: 124, y: 182.2, w: 180 },
-  to: { x: 344, y: 182.2, w: 188 },
-  sigLeft: { x: 72, y: 132.3, w: 195.8 },
-  sigRight: { x: 324.1, y: 132.3, w: 195.8 },
-  dateLeft: { x: 177.5, y: 65.8, w: 75.6 },
-  dateRight: { x: 394, y: 65.8, w: 75.6 },
+  army: { x: 120, y: 422, w: 87.9 },
+  rank: { x: 238.4, y: 422, w: 39.7 },
+  name: { x: 348, y: 422, w: 189.8 },
+  course: { x: 72, y: 335.4, w: 468 },
+  intake: { x: 72.4, y: 298.4, w: 467.3 },
+  school: { x: 72.4, y: 226.3, w: 467.3 },
+  from: { x: 124, y: 193.5, w: 180 },
+  to: { x: 344, y: 193.5, w: 188 },
+  sigLeft: { x: 72, y: 143.4, w: 195.8 },
+  sigRight: { x: 324.1, y: 143.4, w: 195.8 },
+  dateLeft: { x: 177.5, y: 76.8, w: 75.6 },
+  dateRight: { x: 394, y: 76.8, w: 75.6 },
 };
 
+/** Measured on page 1 of CHETI CHA AFISA.docx (the official officers certificate). */
 const AFISA: CertificateLayout = {
-  army: { x: 120, y: 419.7, w: 63.2 },
-  rank: { x: 217.8, y: 419.7, w: 39.6 },
-  name: { x: 323.5, y: 419.7, w: 211.3 },
-  course: { x: 72, y: 333, w: 468 },
-  intake: { x: 72.3, y: 296, w: 467.2 },
-  school: { x: 72.3, y: 224, w: 467.2 },
-  from: { x: 124, y: 191.1, w: 180 },
-  to: { x: 344, y: 191.1, w: 188 },
-  sigLeft: { x: 72, y: 141.2, w: 195.8 },
-  sigRight: { x: 324.1, y: 141.2, w: 195.8 },
-  dateLeft: { x: 177.5, y: 74.4, w: 75.6 },
-  dateRight: { x: 394, y: 74.4, w: 75.6 },
+  army: { x: 120, y: 415.5, w: 63 },
+  rank: { x: 217.5, y: 415.5, w: 39.7 },
+  name: { x: 323.2, y: 415.5, w: 211.6 },
+  course: { x: 72, y: 329, w: 468 },
+  intake: { x: 72.4, y: 292, w: 467.3 },
+  school: { x: 72.4, y: 219.9, w: 467.3 },
+  from: { x: 124, y: 187, w: 180 },
+  to: { x: 344, y: 187, w: 188 },
+  sigLeft: { x: 72, y: 137.1, w: 195.8 },
+  sigRight: { x: 324.1, y: 137.1, w: 195.8 },
+  dateLeft: { x: 177.1, y: 70.5, w: 75.9 },
+  dateRight: { x: 393.8, y: 70.5, w: 75.9 },
 };
 
-/** How far above the dotted baseline the filled-in words sit. */
-const TEXT_LIFT = 2;
+/** How far above the dotted baseline the filled-in words sit. The dots stay. */
+const TEXT_LIFT = 7;
 
 /**
  * The Word export drew two thick red diagonals across the crest and the
@@ -118,9 +120,9 @@ function formatCertDate(value: string | Date | null | undefined): string {
 }
 
 function formatIntakeLabel(intakeNumber: string): string {
-  const trimmed = intakeNumber.trim();
-  if (/^int[-\s]/i.test(trimmed)) return trimmed;
-  return `Int- ${trimmed}`;
+  const trimmed = intakeNumber.trim().replace(/\s+/g, " ");
+  const withoutPrefix = trimmed.replace(/^int(?:ake)?\s*[-:]?\s*/i, "").trim();
+  return withoutPrefix || trimmed;
 }
 
 function formatArmyNumber(armyNumber: string): string {
@@ -128,6 +130,14 @@ function formatArmyNumber(armyNumber: string): string {
   const match = trimmed.match(/^([A-Za-z]+)\s*(.+)$/);
   if (match) return `${match[1].toUpperCase()} ${match[2]}`;
   return trimmed.toUpperCase();
+}
+
+/** Edward Andrew Lukelesho, including a hyphen or apostrophe inside a name. */
+function certificateName(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/(^|[^a-z])([a-z])/g, (_sep, lead: string, letter: string) => lead + letter.toUpperCase());
 }
 
 export interface SignatureStamp {
@@ -149,24 +159,13 @@ function drawInBox(
   text: string,
   box: Box,
   preferred: number,
-  color: RGB,
-  paper: RGB
+  color: RGB
 ) {
   const value = text.trim();
   if (!value) return;
   const size = fitSize(font, value, Math.max(8, box.w - 2), preferred);
   const width = font.widthOfTextAtSize(value, size);
   const x = box.x + Math.max(0, (box.w - width) / 2);
-  const maskLeft = Math.max(box.x, x - 0.8);
-  const maskRight = Math.min(box.x + box.w, x + width + 0.8);
-  page.drawRectangle({
-    x: maskLeft,
-    y: box.y + 0.6,
-    width: Math.max(0, maskRight - maskLeft),
-    height: 7.4,
-    color: paper,
-    borderWidth: 0,
-  });
   page.drawText(value, {
     x,
     y: box.y + TEXT_LIFT,
@@ -312,13 +311,12 @@ type SignatureImages = {
   commandant: PDFImage | null;
 };
 
-type Palette = { ink: RGB; paper: RGB; red: RGB; green: RGB };
+type Palette = { ink: RGB; red: RGB; green: RGB };
 
 async function loadPalette(): Promise<Palette> {
   const { rgb } = await import("pdf-lib");
   return {
     ink: rgb(0, 0, 0),
-    paper: rgb(1, 1, 1),
     red: rgb(1, 0, 0),
     green: rgb(0, 176 / 255, 80 / 255),
   };
@@ -333,27 +331,29 @@ function drawCertificateFields(
 ) {
   const kind = certificateKind(data.rankAtEnrollment);
   const layout = layoutFor(kind);
-  const { ink, paper } = palette;
+  const { ink } = palette;
 
-  drawInBox(page, font, formatArmyNumber(data.armyNumber), layout.army, 12, ink, paper);
-  drawInBox(page, font, data.rankAtEnrollment, layout.rank, 12, ink, paper);
-  drawInBox(page, font, data.fullName, layout.name, 12, ink, paper);
-  drawInBox(page, font, data.courseName, layout.course, 13, ink, paper);
-  drawInBox(page, font, formatIntakeLabel(data.intakeNumber), layout.intake, 12, ink, paper);
-  drawInBox(page, font, data.schoolNameSw, layout.school, 13, ink, paper);
+  drawInBox(page, font, formatArmyNumber(data.armyNumber), layout.army, 12, ink);
+  drawInBox(page, font, certificateName(data.rankAtEnrollment), layout.rank, 12, ink);
+  drawInBox(page, font, certificateName(data.fullName), layout.name, 12, ink);
+  drawInBox(page, font, certificateName(data.courseName), layout.course, 13, ink);
+  drawInBox(page, font, formatIntakeLabel(data.intakeNumber), layout.intake, 12, ink);
+  drawInBox(page, font, certificateName(data.schoolNameSw), layout.school, 13, ink);
 
   const endDate = data.endDate ?? data.issueDate;
-  drawInBox(page, font, formatCertDate(data.startDate), layout.from, 12, ink, paper);
-  drawInBox(page, font, formatCertDate(endDate), layout.to, 12, ink, paper);
+  drawInBox(page, font, formatCertDate(data.startDate), layout.from, 12, ink);
+  drawInBox(page, font, formatCertDate(endDate), layout.to, 12, ink);
 
   const issue = formatCertDate(data.issueDate);
-  drawInBox(page, font, issue, layout.dateLeft, 10, ink, paper);
-  drawInBox(page, font, issue, layout.dateRight, 10, ink, paper);
+  drawInBox(page, font, issue, layout.dateLeft, 10, ink);
+  drawInBox(page, font, issue, layout.dateRight, 10, ink);
 
   drawSignatory(page, layout.sigLeft, signatures.chief);
   drawSignatory(page, layout.sigRight, signatures.commandant);
 
-  drawLeftFrame(page, kind, palette.red, palette.green);
+  // The official askari file already has its left border. The afisa export
+  // still drops that stroke, so only that page gets the repair.
+  if (kind === "afisa") drawLeftFrame(page, kind, palette.red, palette.green);
 }
 
 export async function fillGraduationCertificate(

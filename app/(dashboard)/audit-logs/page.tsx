@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { requireRole } from "@/lib/auth/guards";
+import { requireRole, VIEW_ALL_ROLES } from "@/lib/auth/guards";
 import {
   formatLogWhen,
   summarizeAuditEvent,
@@ -39,7 +39,7 @@ interface PageProps {
 const ALL = "__all__";
 
 export default async function ActivityLogsPage({ searchParams }: PageProps) {
-  await requireRole(["admin"]);
+  await requireRole(VIEW_ALL_ROLES);
   const raw = await searchParams;
   const tab = raw.tab === "logins" ? "logins" : "activity";
 

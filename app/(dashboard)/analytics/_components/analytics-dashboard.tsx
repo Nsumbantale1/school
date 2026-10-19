@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -101,6 +100,101 @@ function KpiCard({
   );
 }
 
+const SECTIONS = [
+  { id: "year", index: "01", title: "Year against year" },
+  { id: "grades", index: "02", title: "Grade against grade" },
+  { id: "courses", index: "03", title: "Course against course" },
+  { id: "intakes", index: "04", title: "Intake against intake" },
+  { id: "subjects", index: "05", title: "Subject against subject" },
+] as const;
+
+function rateClass(rate: number) {
+  if (rate >= 75) return "text-green-700 dark:text-green-400";
+  if (rate >= 55) return "text-amber-700 dark:text-amber-400";
+  return "text-red-700 dark:text-red-400";
+}
+
+function openingBrief(data: AnalyticsDashboardData) {
+  const enrollments = data.kpis.totalEnrollments.value;
+  const pass = data.kpis.passRate.value;
+  const change = data.kpis.passRate.change;
+  if (enrollments === 0) {
+    return {
+      headline: "No enrollments in this scope",
+      detail:
+        "Choose another year or course. Leave both filters on All to read the full training record.",
+    };
+  }
+
+  const movement =
+    change == null
+      ? "The previous year has no pass rate to compare."
+      : change === 0
+        ? "The pass rate is level with the previous year."
+        : `The pass rate is ${Math.abs(change)}% ${change > 0 ? "higher" : "lower"} than the previous year.`;
+
+  const lead = [...data.coursePerformance].sort((a, b) => b.passRate - a.passRate)[0];
+  const hardest = data.subjectAnalysis[0];
+  const notes = [
+    movement,
+    lead
+      ? `${lead.courseCode} is the strongest course in this scope, at ${lead.passRate}% pass rate.`
+      : "",
+    hardest
+      ? `${hardest.subjectName} is the lowest-scoring subject, at ${hardest.avgPercentage}%.`
+      : "",
+  ].filter(Boolean);
+
+  return {
+    headline: `${pass}% pass rate across ${enrollments.toLocaleString()} enrollments`,
+    detail: notes.join(" "),
+  };
+}
+
+function OutcomeCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: number;
+  hint: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-3xl font-semibold tracking-tight">{value.toLocaleString()}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SectionHeading({
+  index,
+  title,
+  detail,
+}: {
+  index: string;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5 font-mono text-xs tracking-widest text-muted-foreground">
+        {index}
+      </span>
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
 export function AnalyticsDashboard({ data }: { data: AnalyticsDashboardData }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -127,8 +221,10 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsDashboardData }) {
       : "All courses",
   ].join(" · ");
 
+  const brief = openingBrief(data);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-3">
           <Select value={yearValue} onValueChange={(v) => setFilter("year", v)}>
@@ -168,10 +264,59 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsDashboardData }) {
         </Button>
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        Showing analytics for: <span className="font-medium text-foreground">{filterLabel}</span>
-      </p>
+      <Card className="overflow-hidden">
+        <CardContent className="grid gap-6 p-0 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.8fr)]">
+          <div className="space-y-3 p-5 sm:p-6">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              Opening brief · {filterLabel}
+            </p>
+            <p className="text-2xl font-semibold tracking-tight">{brief.headline}</p>
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{brief.detail}</p>
+          </div>
+          <div className="border-t bg-muted/40 p-5 sm:p-6 lg:border-l lg:border-t-0">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              This page compares
+            </p>
+            <ol className="mt-3 space-y-2 text-sm">
+              {SECTIONS.map((section) => (
+                <li key={section.id}>
+                  <a href={`#${section.id}`} className="hover:underline">
+                    <span className="mr-2 font-mono text-xs text-muted-foreground">{section.index}</span>
+                    {section.title}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </CardContent>
+      </Card>
 
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Outcomes in {filterLabel}</h2>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+            Grade A is a final grade of A. Failed is a final grade of F, or the older failed status.
+            Ceased training is the CT status. Discipline cases are students who ceased training for indiscipline, counted on their own.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <OutcomeCard label="Grade A" value={data.outcomes.gradeA} hint="Final grade A" />
+          <OutcomeCard label="Failed" value={data.outcomes.failed} hint="Grade F or legacy failed status" />
+          <OutcomeCard label="Ceased training" value={data.outcomes.ceasedTraining} hint="CT status" />
+          <OutcomeCard
+            label="Discipline cases"
+            value={data.outcomes.discipline}
+            hint="Ceased training for indiscipline"
+          />
+        </div>
+      </div>
+
+      <section id="year" className="scroll-mt-6 space-y-4">
+        <SectionHeading
+          index="01"
+          title="Year against year"
+          detail="The selected scope against the previous year, then the last five years beside one another. An increase in Failed or At Risk is marked in red."
+        />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         <KpiCard
           label={data.kpis.totalStudents.label}
@@ -221,34 +366,37 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsDashboardData }) {
           variant="danger"
         />
       </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <EnrollmentTrendChart data={data.enrollmentTrend} />
+          <PassRateTrendChart data={data.enrollmentTrend} />
+        </div>
+        <MonthlyEnrollmentChart
+          data={data.monthlyEnrollments.map((m) => ({
+            month: m.month,
+            count: m.enrollments,
+          }))}
+          title={`Monthly enrollments (${data.filters.selectedYear ?? new Date().getFullYear()})`}
+        />
+      </section>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="flex flex-wrap h-auto gap-1">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="performance">Course Performance</TabsTrigger>
-          <TabsTrigger value="intakes">Intake Analysis</TabsTrigger>
-          <TabsTrigger value="subjects">Subject Analysis</TabsTrigger>
-        </TabsList>
+      <section id="grades" className="scroll-mt-6 space-y-4">
+        <SectionHeading
+          index="02"
+          title="Grade against grade"
+          detail="Final grades A to F among students who completed, set beside the enrollment statuses in the same scope: completed, failed, incomplete, indiscipline, and still in training."
+        />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <GradeDistributionChart data={data.gradeDistribution} title="Final grade against final grade" />
+          <StatusBreakdownChart data={data.statusBreakdown} title="Status against status" />
+        </div>
+      </section>
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <GradeDistributionChart data={data.gradeDistribution} />
-            <StatusBreakdownChart data={data.statusBreakdown} />
-          </div>
-          <div className="grid gap-6 lg:grid-cols-2">
-            <EnrollmentTrendChart data={data.enrollmentTrend} />
-            <PassRateTrendChart data={data.enrollmentTrend} />
-          </div>
-          <MonthlyEnrollmentChart
-            data={data.monthlyEnrollments.map((m) => ({
-              month: m.month,
-              count: m.enrollments,
-            }))}
-            title={`Monthly Enrollments (${data.filters.selectedYear ?? new Date().getFullYear()})`}
-          />
-        </TabsContent>
-
-        <TabsContent value="performance" className="space-y-6">
+      <section id="courses" className="scroll-mt-6 space-y-4">
+        <SectionHeading
+          index="03"
+          title="Course against course"
+          detail="Each course is measured on students who completed. Green is a pass rate of 75% or more, amber is 55% to 74%, and red is below 55%."
+        />
           <CoursePerformanceChart
             data={data.coursePerformance.map((c) => ({
               courseCode: c.courseCode,
@@ -260,9 +408,9 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsDashboardData }) {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Course performance table</CardTitle>
+              <CardTitle className="text-base">Course ranking</CardTitle>
               <CardDescription>
-                Detailed pass rates and average scores per course
+                Pass rate and average score, one row per course in this scope
               </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
@@ -300,14 +448,7 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsDashboardData }) {
                         </td>
                         <td className="py-2.5 pr-4">
                           <span
-                            className={cn(
-                              "font-semibold",
-                              c.passRate >= 75
-                                ? "text-green-700 dark:text-green-400"
-                                : c.passRate >= 55
-                                  ? "text-amber-700 dark:text-amber-400"
-                                  : "text-red-700 dark:text-red-400"
-                            )}
+                            className={cn("font-semibold", rateClass(c.passRate))}
                           >
                             {c.passRate}%
                           </span>
@@ -322,17 +463,22 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsDashboardData }) {
               </table>
             </CardContent>
           </Card>
-        </TabsContent>
+      </section>
 
-        <TabsContent value="intakes" className="space-y-6">
+      <section id="intakes" className="scroll-mt-6 space-y-4">
+        <SectionHeading
+          index="04"
+          title="Intake against intake"
+          detail="The latest intakes in this scope, each judged by how many students finished and what share of those finishes were a pass."
+        />
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
-                Intake performance
+                Intake ranking
               </CardTitle>
               <CardDescription>
-                Compare outcomes across intakes — pass rate and average score
+                Up to 20 intakes, newest first
               </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
@@ -365,14 +511,7 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsDashboardData }) {
                         <td className="py-2.5 pr-4">{i.completed}</td>
                         <td className="py-2.5 pr-4">
                           <span
-                            className={cn(
-                              "font-semibold",
-                              i.passRate >= 75
-                                ? "text-green-700"
-                                : i.passRate >= 55
-                                  ? "text-amber-700"
-                                  : "text-red-700"
-                            )}
+                            className={cn("font-semibold", rateClass(i.passRate))}
                           >
                             {i.passRate}%
                           </span>
@@ -387,15 +526,20 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsDashboardData }) {
               </table>
             </CardContent>
           </Card>
-        </TabsContent>
+      </section>
 
-        <TabsContent value="subjects" className="space-y-6">
+      <section id="subjects" className="scroll-mt-6 space-y-4">
+        <SectionHeading
+          index="05"
+          title="Subject against subject"
+          detail="Each subject is scored as marks gained divided by the maximum mark. A subject pass is 55% or higher. The list starts with the lowest average, so the hardest subject is first."
+        />
           <SubjectAnalysisChart data={data.subjectAnalysis} />
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Subject difficulty ranking</CardTitle>
+              <CardTitle className="text-base">Subject ranking</CardTitle>
               <CardDescription>
-                Subjects sorted by average marks (lowest first = most challenging)
+                Lowest average first, limited to 15 subjects
               </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
@@ -424,14 +568,7 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsDashboardData }) {
                         <td className="py-2.5 pr-4">{s.attempts}</td>
                         <td className="py-2.5 pr-4">
                           <span
-                            className={cn(
-                              "font-semibold",
-                              s.avgPercentage >= 75
-                                ? "text-green-700"
-                                : s.avgPercentage >= 55
-                                  ? "text-amber-700"
-                                  : "text-red-700"
-                            )}
+                            className={cn("font-semibold", rateClass(s.avgPercentage))}
                           >
                             {s.avgPercentage}%
                           </span>
@@ -444,8 +581,24 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsDashboardData }) {
               </table>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+      </section>
+
+      <Card>
+        <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-medium">Two specific records</p>
+            <p className="text-sm text-muted-foreground">
+              Comparative places one intake, course, or year directly beside another.
+            </p>
+          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/analytics/comparative">
+              <ArrowLeftRight className="mr-2 h-4 w-4" />
+              Open Comparative
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

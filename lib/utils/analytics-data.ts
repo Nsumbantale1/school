@@ -99,6 +99,12 @@ export interface AnalyticsDashboardData {
   intakePerformance: IntakePerformanceRow[];
   subjectAnalysis: SubjectAnalysisRow[];
   monthlyEnrollments: MonthlyRow[];
+  outcomes: {
+    gradeA: number;
+    failed: number;
+    ceasedTraining: number;
+    discipline: number;
+  };
 }
 
 const GRADES = ["A", "B", "C", "D", "F"] as const;
@@ -158,6 +164,7 @@ export async function getAnalyticsDashboard(
         completed: sql<number>`sum(case when ${enrollments.status} = 'completed' then 1 else 0 end)`,
         passed: sql<number>`sum(case when ${enrollments.grade} is not null and ${enrollments.grade} != 'F' then 1 else 0 end)`,
         failed: sql<number>`sum(case when ${enrollments.status} = 'failed' or ${enrollments.grade} = 'F' then 1 else 0 end)`,
+        gradeA: sql<number>`sum(case when ${enrollments.grade} = 'A' then 1 else 0 end)`,
         incomplete: sql<number>`sum(case when ${enrollments.status} = 'incomplete' then 1 else 0 end)`,
         indiscipline: sql<number>`sum(case when ${enrollments.status} = 'indiscipline' then 1 else 0 end)`,
         active: sql<number>`sum(case when ${enrollments.status} in ('enrolled', 'in_progress') then 1 else 0 end)`,
@@ -179,6 +186,7 @@ export async function getAnalyticsDashboard(
       completed: Number(row?.completed ?? 0),
       passed: Number(row?.passed ?? 0),
       failed: Number(row?.failed ?? 0),
+      gradeA: Number(row?.gradeA ?? 0),
       incomplete: Number(row?.incomplete ?? 0),
       indiscipline: Number(row?.indiscipline ?? 0),
       active: Number(row?.active ?? 0),
@@ -449,5 +457,11 @@ export async function getAnalyticsDashboard(
     intakePerformance,
     subjectAnalysis,
     monthlyEnrollments,
+    outcomes: {
+      gradeA: filteredStats.gradeA,
+      failed: filteredStats.failed,
+      ceasedTraining: filteredStats.incomplete,
+      discipline: filteredStats.indiscipline,
+    },
   };
 }

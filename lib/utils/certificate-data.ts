@@ -5,9 +5,11 @@ import {
   courses,
   courseIntakes,
   certificates,
+  certificateRequestItems,
+  certificateRequests,
   officialSignatures,
 } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNotNull } from "drizzle-orm";
 import { isPassingGrade } from "@/lib/utils/grades";
 import type { Grade } from "@/lib/db/schema";
 
@@ -32,7 +34,58 @@ export interface CertificateData {
   schoolNameEn: string;
   chiefInstructor: CertificateSignatory;
   commandant: CertificateSignatory;
+  /** Calendar day (YYYY-MM-DD, Tanzania time) the Chief Instructor approved. */
+  chiefInstructorSignedOn: string | null;
+  /** Calendar day (YYYY-MM-DD, Tanzania time) the Commandant approved. */
+  commandantSignedOn: string | null;
   issueDate: Date;
+}
+
+const SIGNING_TIME_ZONE = "Africa/Dar_es_Salaam";
+
+function signingDay(value: Date | null): string | null {
+  if (!value) return null;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: SIGNING_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
+}
+
+/**
+ * Approval dates of the print request the certificate comes from. With no
+ * requestId, the enrollment's most recent fully approved request is used.
+ */
+async function getSigningDays(
+  enrollmentId: number,
+  requestId?: number
+): Promise<{ chiefInstructor: string | null; commandant: string | null }> {
+  const [row] = await db
+    .select({
+      chiefInstructorApprovedAt: certificateRequests.chiefInstructorApprovedAt,
+      commandantApprovedAt: certificateRequests.commandantApprovedAt,
+    })
+    .from(certificateRequestItems)
+    .innerJoin(
+      certificateRequests,
+      eq(certificateRequestItems.requestId, certificateRequests.id)
+    )
+    .where(
+      and(
+        eq(certificateRequestItems.enrollmentId, enrollmentId),
+        requestId === undefined
+          ? isNotNull(certificateRequests.commandantApprovedAt)
+          : eq(certificateRequests.id, requestId)
+      )
+    )
+    .orderBy(desc(certificateRequests.commandantApprovedAt))
+    .limit(1);
+
+  return {
+    chiefInstructor: signingDay(row?.chiefInstructorApprovedAt ?? null),
+    commandant: signingDay(row?.commandantApprovedAt ?? null),
+  };
 }
 
 const SCHOOL_NAME_SW = "Shule ya Mafunzo ya Mizinga";
@@ -114,7 +167,8 @@ function buildCertificateNumber(
 }
 
 export async function getCertificateData(
-  enrollmentId: number
+  enrollmentId: number,
+  requestId?: number
 ): Promise<
   | { success: true; data: CertificateData }
   | { success: false; error: string }
@@ -162,8 +216,11 @@ export async function getCertificateData(
     .where(eq(certificates.enrollmentId, enrollmentId))
     .limit(1);
 
-  const chiefInstructor = await getActiveOfficial("chief_instructor");
-  const commandant = await getActiveOfficial("commandant");
+  const [chiefInstructor, commandant, signedOn] = await Promise.all([
+    getActiveOfficial("chief_instructor"),
+    getActiveOfficial("commandant"),
+    getSigningDays(enrollmentId, requestId),
+  ]);
 
   const certificateNumber =
     existing?.certificateNumber ??
@@ -194,6 +251,8 @@ export async function getCertificateData(
         rankTitle: null,
         signatureImagePath: null,
       },
+      chiefInstructorSignedOn: signedOn.chiefInstructor,
+      commandantSignedOn: signedOn.commandant,
       issueDate: new Date(),
     },
   };

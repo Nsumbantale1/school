@@ -128,8 +128,7 @@ export async function recalculatePositions(intakeId: number): Promise<void> {
     const current = intakeEnrollments.find(
       (e) => e.enrollmentId === score.enrollmentId
     );
-    const protectStatus =
-      current?.status === "indiscipline" || current?.status === "withdrawn";
+    const protectStatus = keepManualOutcome(current?.status);
 
     // Update enrollment with calculated values
     await db
@@ -284,8 +283,7 @@ export async function recalculateEnrollmentMarks(
     .from(enrollments)
     .where(eq(enrollments.enrollmentId, enrollmentId))
     .limit(1);
-  const protectStatus =
-    existing?.status === "indiscipline" || existing?.status === "withdrawn";
+  const protectStatus = keepManualOutcome(existing?.status);
 
   await db
     .update(enrollments)
@@ -319,6 +317,16 @@ export async function getIntakeIdForEnrollment(
     .limit(1);
 
   return result[0]?.intakeId ?? null;
+}
+
+/** Admin decisions made while a course is running stay in place. */
+function keepManualOutcome(status: string | null | undefined) {
+  return (
+    status === "failed" ||
+    status === "incomplete" ||
+    status === "indiscipline" ||
+    status === "withdrawn"
+  );
 }
 
 function sofaGradeFromResults(

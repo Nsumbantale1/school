@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SearchableSelect } from "@/components/searchable-select";
+import { displayName } from "@/lib/utils/display-name";
 import { Card, CardContent } from "@/components/ui/card";
 import { createResult, updateResult } from "../actions";
 import { calculateGrade } from "@/lib/utils/grades";
@@ -133,8 +134,8 @@ export function ResultForm({
           placeholder="Search by student, army no, or course..."
           options={enrollments.map((e) => ({
             value: e.enrollmentId.toString(),
-            label: `${e.rank} ${e.fullName} - ${e.courseCode} (${e.intakeNumber})`,
-            searchText: `${e.rank} ${e.fullName} ${e.studentArmyNumber} ${e.courseCode} ${e.intakeNumber}`,
+            label: `${e.rank} ${displayName(e.fullName, e.courseCode)} - ${e.courseCode} (${e.intakeNumber})`,
+            searchText: `${e.rank} ${e.fullName} ${displayName(e.fullName, e.courseCode)} ${e.studentArmyNumber} ${e.courseCode} ${e.intakeNumber}`,
           }))}
         />
       </div>

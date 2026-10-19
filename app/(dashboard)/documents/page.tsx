@@ -7,13 +7,14 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { requireRole } from "@/lib/auth/guards";
+import { canManageDocuments, requireRole, VIEW_ALL_ROLES } from "@/lib/auth/guards";
 import { FileText, Download, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
 import { studentPath } from "@/lib/utils";
 
 export default async function DocumentsPage() {
-  await requireRole(["admin"]);
+  const user = await requireRole(VIEW_ALL_ROLES);
+  const canManage = canManageDocuments(user.role);
 
   const docs = await db
     .select({
@@ -59,12 +60,18 @@ export default async function DocumentsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Documents"
-        description="Manage uploaded certificates and files"
+        description={
+          canManage
+            ? "Manage uploaded certificates and files"
+            : "Uploaded certificates and files (view only)"
+        }
       >
-        <Button disabled>
-          <Upload className="mr-2 h-4 w-4" />
-          Upload Document
-        </Button>
+        {canManage && (
+          <Button disabled>
+            <Upload className="mr-2 h-4 w-4" />
+            Upload Document
+          </Button>
+        )}
       </PageHeader>
 
       <Card>
@@ -143,9 +150,11 @@ export default async function DocumentsPage() {
                           <Button variant="ghost" size="sm" disabled>
                             <Download className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" disabled>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          {canManage && (
+                            <Button variant="ghost" size="sm" disabled>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

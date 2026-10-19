@@ -35,7 +35,7 @@ import { PrintButton } from "@/components/print-button";
 import { FinalCourseReport } from "./_components/final-course-report";
 import { parseBccResults } from "@/lib/utils/bcc-report";
 import { getStudentPhotoPath } from "@/lib/utils/student-photo";
-import { displayName } from "@/lib/utils/display-name";
+import { displayName, nameOrderForCourses } from "@/lib/utils/display-name";
 
 interface PageProps {
   params: Promise<{ army_number: string }>;
@@ -152,14 +152,19 @@ export default async function StudentDetailPage({ params }: PageProps) {
     classSizeRows.map((r) => [r.intakeId, Number(r.n)])
   );
 
+  const personName = displayName(
+    student.fullName,
+    nameOrderForCourses(studentEnrollments)
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${student.rank} ${displayName(student.fullName)}`}
+        title={`${student.rank} ${personName}`}
         description={`Army Number: ${student.armyNumber} · Current rank`}
       >
         <PrintButton
-          title={`Final Course Report — ${student.rank} ${displayName(student.fullName)}`}
+          title={`Final Course Report — ${student.rank} ${personName}`}
         />
         <Button variant="default" asChild>
           <Link href={studentPath(army_number, "/service-record")}>
@@ -178,6 +183,77 @@ export default async function StudentDetailPage({ params }: PageProps) {
         <BackButton fallbackHref="/students" />
       </PageHeader>
 
+      <Card className="print:hidden">
+        <CardHeader>
+          <CardTitle className="text-base">Course History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {studentEnrollments.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">
+              No course enrollments yet.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-2 font-medium">Course</th>
+                    <th className="text-left py-3 px-2 font-medium">Rank then</th>
+                    <th className="text-left py-3 px-2 font-medium">Intake</th>
+                    <th className="text-left py-3 px-2 font-medium">Year</th>
+                    <th className="text-left py-3 px-2 font-medium">Status</th>
+                    <th className="text-left py-3 px-2 font-medium">Average</th>
+                    <th className="text-left py-3 px-2 font-medium">Grade</th>
+                    <th className="text-left py-3 px-2 font-medium">Position</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {studentEnrollments.map((enrollment) => (
+                    <tr key={enrollment.enrollmentId} className="border-b">
+                      <td className="py-3 px-2">
+                        <Link
+                          href={`/enrollments/${enrollment.enrollmentId}`}
+                          className="hover:underline"
+                        >
+                          <p className="font-medium">{enrollment.courseName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {enrollment.courseCode}
+                          </p>
+                        </Link>
+                      </td>
+                      <td className="py-3 px-2">
+                        <span className="font-medium">{enrollment.rankAtEnrollment}</span>
+                        {enrollment.rankAtEnrollment !== student.rank && (
+                          <p className="text-xs text-muted-foreground">
+                            now {student.rank}
+                          </p>
+                        )}
+                      </td>
+                      <td className="py-3 px-2">{enrollment.intakeNumber}</td>
+                      <td className="py-3 px-2">{enrollment.year}</td>
+                      <td className="py-3 px-2">
+                        <StatusBadge status={enrollment.status} />
+                      </td>
+                      <td className="py-3 px-2">
+                        {enrollment.averageMarks
+                          ? `${parseFloat(enrollment.averageMarks).toFixed(1)}%`
+                          : "—"}
+                      </td>
+                      <td className="py-3 px-2">
+                        <GradeBadge grade={enrollment.grade} />
+                      </td>
+                      <td className="py-3 px-2">
+                        <PositionBadge position={enrollment.position} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {studentEnrollments.map((enrollment) => {
         const report = reportByEnrollment.get(enrollment.enrollmentId);
         if (!report) return null;
@@ -186,7 +262,7 @@ export default async function StudentDetailPage({ params }: PageProps) {
             key={`bcc-${enrollment.enrollmentId}`}
             forceNo={student.armyNumber}
             rank={enrollment.rankAtEnrollment}
-            fullName={displayName(student.fullName)}
+            fullName={student.fullName}
             unit={enrollment.unitAtEnrollment ?? student.unit}
             courseCode={enrollment.courseCode}
             courseName={enrollment.courseName}
@@ -305,77 +381,6 @@ export default async function StudentDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
       </div>
-
-      <Card className="print:hidden">
-        <CardHeader>
-          <CardTitle className="text-base">Course History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {studentEnrollments.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              No course enrollments yet.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-2 font-medium">Course</th>
-                    <th className="text-left py-3 px-2 font-medium">Rank then</th>
-                    <th className="text-left py-3 px-2 font-medium">Intake</th>
-                    <th className="text-left py-3 px-2 font-medium">Year</th>
-                    <th className="text-left py-3 px-2 font-medium">Status</th>
-                    <th className="text-left py-3 px-2 font-medium">Average</th>
-                    <th className="text-left py-3 px-2 font-medium">Grade</th>
-                    <th className="text-left py-3 px-2 font-medium">Position</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {studentEnrollments.map((enrollment) => (
-                    <tr key={enrollment.enrollmentId} className="border-b">
-                      <td className="py-3 px-2">
-                        <Link
-                          href={`/enrollments/${enrollment.enrollmentId}`}
-                          className="hover:underline"
-                        >
-                          <p className="font-medium">{enrollment.courseName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {enrollment.courseCode}
-                          </p>
-                        </Link>
-                      </td>
-                      <td className="py-3 px-2">
-                        <span className="font-medium">{enrollment.rankAtEnrollment}</span>
-                        {enrollment.rankAtEnrollment !== student.rank && (
-                          <p className="text-xs text-muted-foreground">
-                            now {student.rank}
-                          </p>
-                        )}
-                      </td>
-                      <td className="py-3 px-2">{enrollment.intakeNumber}</td>
-                      <td className="py-3 px-2">{enrollment.year}</td>
-                      <td className="py-3 px-2">
-                        <StatusBadge status={enrollment.status} />
-                      </td>
-                      <td className="py-3 px-2">
-                        {enrollment.averageMarks
-                          ? `${parseFloat(enrollment.averageMarks).toFixed(1)}%`
-                          : "—"}
-                      </td>
-                      <td className="py-3 px-2">
-                        <GradeBadge grade={enrollment.grade} />
-                      </td>
-                      <td className="py-3 px-2">
-                        <PositionBadge position={enrollment.position} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {studentEnrollments.map((enrollment) => {
         if (reportByEnrollment.get(enrollment.enrollmentId)) return null;

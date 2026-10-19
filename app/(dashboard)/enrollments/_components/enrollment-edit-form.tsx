@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateEnrollment } from "../actions";
 import { BackButton } from "@/components/back-button";
+import Link from "next/link";
 
 const GRADE_OPTIONS = ["A", "B", "C", "D", "F"] as const;
 
@@ -15,9 +16,9 @@ const STATUS_OPTIONS = [
   { value: "enrolled", label: "Enrolled" },
   { value: "in_progress", label: "In Progress" },
   { value: "completed", label: "Completed (passed — 55%+)" },
-  { value: "incomplete", label: "CT — Ceased Training (below 55%)" },
-  { value: "failed", label: "CT — Ceased Training (legacy failed)" },
-  { value: "indiscipline", label: "Indiscipline (ceased — 3 year ban)" },
+  { value: "failed", label: "Failed" },
+  { value: "incomplete", label: "CT — Ceased training" },
+  { value: "indiscipline", label: "CT — Indiscipline" },
   { value: "withdrawn", label: "Withdrawn" },
 ] as const;
 
@@ -30,6 +31,7 @@ export type EnrollmentEditInitial = {
   averageMarks: string | null;
   grade: string | null;
   position: number | null;
+  pendingChange?: { id: number; requestNumber: string } | null;
 };
 
 export function EnrollmentEditForm({
@@ -40,6 +42,8 @@ export function EnrollmentEditForm({
   const router = useRouter();
   const [pending, setPending] = React.useState(false);
   const [status, setStatus] = React.useState(initialData.status);
+  const marksRecorded =
+    initialData.averageMarks != null || initialData.grade != null || initialData.position != null;
   const needsCeasedDate =
     status === "incomplete" || status === "indiscipline" || status === "failed";
 
@@ -52,7 +56,11 @@ export function EnrollmentEditForm({
 
     setPending(false);
 
-    if (result.success) {
+    if (result.success && "pendingApproval" in result && result.pendingApproval) {
+      toast.success(result.message, { duration: 8000 });
+      router.push(`/results/changes/${result.requestId}`);
+      router.refresh();
+    } else if (result.success) {
       toast.success("Enrollment updated.");
       router.push(`/enrollments/${initialData.enrollmentId}`);
       router.refresh();
@@ -124,6 +132,24 @@ export function EnrollmentEditForm({
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           Performance summary
         </h3>
+        {marksRecorded && (
+          <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            These marks are already recorded. Changing average, grade or position sends a request
+            to the Chief Instructor and then the Commandant; the marks change only after both
+            approve.
+          </p>
+        )}
+        {initialData.pendingChange && (
+          <p className="text-xs">
+            A change is already waiting for approval:{" "}
+            <Link
+              href={`/results/changes/${initialData.pendingChange.id}`}
+              className="font-medium underline"
+            >
+              {initialData.pendingChange.requestNumber}
+            </Link>
+          </p>
+        )}
         <div className="space-y-2">
           <Label htmlFor="averageMarks">Average marks (%)</Label>
           <Input
@@ -169,6 +195,16 @@ export function EnrollmentEditForm({
             placeholder="e.g. 19"
           />
         </div>
+        {marksRecorded && (
+          <div className="space-y-2">
+            <Label htmlFor="changeReason">Reason for changing marks</Label>
+            <Input
+              id="changeReason"
+              name="changeReason"
+              placeholder="Only needed if you change average, grade or position"
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 pt-2">

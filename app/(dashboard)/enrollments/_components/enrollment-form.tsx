@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SearchableSelect } from "@/components/searchable-select";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import { createEnrollment } from "../actions";
+import { displayName } from "@/lib/utils/display-name";
 import { BackButton } from "@/components/back-button";
 
 interface Student {
@@ -41,6 +42,9 @@ export function EnrollmentForm({
   backHref = "/enrollments",
 }: EnrollmentFormProps) {
   const router = useRouter();
+  const [intakeId, setIntakeId] = React.useState(
+    defaultIntakeId?.toString() ?? ""
+  );
   const [pending, setPending] = React.useState(false);
   const [prerequisiteError, setPrerequisiteError] = React.useState<string | null>(null);
   const [indisciplineError, setIndisciplineError] = React.useState<string | null>(null);
@@ -106,11 +110,21 @@ export function EnrollmentForm({
           defaultValue={defaultStudentArmyNumber}
           required
           placeholder="Search by name, rank, or army number..."
-          options={students.map((s) => ({
-            value: s.armyNumber,
-            label: `${s.rank} ${s.fullName} (${s.armyNumber})`,
-            searchText: `${s.rank} ${s.fullName} ${s.armyNumber}`,
-          }))}
+          options={students.map((s) => {
+            const intake = intakes.find(
+              (item) => item.intakeId.toString() === intakeId
+            );
+            const name = displayName(
+              s.fullName,
+              intake?.courseCode,
+              intake?.courseName
+            );
+            return {
+              value: s.armyNumber,
+              label: `${s.rank} ${name} (${s.armyNumber})`,
+              searchText: `${s.rank} ${s.fullName} ${name} ${s.armyNumber}`,
+            };
+          })}
         />
       </div>
 
@@ -120,6 +134,7 @@ export function EnrollmentForm({
           id="intakeId"
           name="intakeId"
           defaultValue={defaultIntakeId?.toString()}
+          onValueChange={setIntakeId}
           required
           placeholder="Search course or intake..."
           options={intakes.map((i) => ({

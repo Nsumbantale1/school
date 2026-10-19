@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/auth/guards";
 import { hashPassword } from "@/lib/auth";
 import { isUserRole, type UserRole } from "@/lib/auth/types";
 import { logAudit } from "@/lib/utils/audit";
+import { resolvePasswordResets } from "@/lib/utils/password-reset";
 
 type ActionResult = { success: true } | { success: false; error: string };
 
@@ -200,6 +201,7 @@ export async function resetUserPassword(fd: FormData): Promise<ActionResult> {
     .returning({ id: users.id });
   if (updated.length === 0) return { success: false, error: "User not found." };
 
+  await resolvePasswordResets(id, actor.userId);
   await logAudit({
     user: actor,
     action: "update",
@@ -208,6 +210,7 @@ export async function resetUserPassword(fd: FormData): Promise<ActionResult> {
     newValues: { password: "reset" },
   });
 
+  revalidatePath("/users");
   return { success: true };
 }
 

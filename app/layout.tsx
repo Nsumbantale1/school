@@ -32,7 +32,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${jakarta.variable} ${sora.variable}`} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: PALETTE_INIT_SCRIPT }} />
+        {/* Extensions such as Kaspersky inject their own script into <head> before hydration. */}
+        <script
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: PALETTE_INIT_SCRIPT }}
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

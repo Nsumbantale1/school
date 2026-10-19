@@ -25,6 +25,7 @@ import {
   listEligibleEnrollmentsForIntake,
 } from "@/lib/utils/certificate-requests";
 import { formatIntakeLabel } from "@/lib/utils/intake-label";
+import { displayName } from "@/lib/utils/display-name";
 import { ApprovalActions } from "../_components/approval-actions";
 import { BatchPrintButton } from "../_components/batch-print-button";
 import { ReviseRequestForm } from "../_components/revise-request-form";
@@ -156,7 +157,7 @@ export default async function CertificateRequestDetailPage({
           items={items.map((i) => ({
             enrollmentId: i.enrollmentId,
             studentArmyNumber: i.studentArmyNumber,
-            fullName: i.fullName,
+            fullName: displayName(i.fullName, request.courseCode, request.courseName),
             status: i.status,
           }))}
         />
@@ -168,6 +169,8 @@ export default async function CertificateRequestDetailPage({
           eligible={eligibleForRevise}
           initiallySelected={items.map((i) => i.enrollmentId)}
           notes={request.notes}
+          courseCode={request.courseCode}
+          courseName={request.courseName}
         />
       )}
 
@@ -198,7 +201,8 @@ export default async function CertificateRequestDetailPage({
                       {i.studentArmyNumber}
                     </td>
                     <td className="py-2 pr-3">
-                      {i.rank} {i.fullName}
+                      {i.rank}{" "}
+                      {displayName(i.fullName, request.courseCode, request.courseName)}
                     </td>
                     <td className="py-2 pr-3">{i.grade ?? "—"}</td>
                     <td className="py-2 capitalize">{i.status}</td>

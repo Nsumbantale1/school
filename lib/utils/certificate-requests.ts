@@ -175,7 +175,27 @@ export async function listEligibleEnrollmentsForIntake(intakeId: number) {
     .filter((r) => r.eligible);
 }
 
+function describeDbError(error: unknown): string {
+  if (error instanceof Error && error.cause instanceof Error && error.cause.message) {
+    return error.cause.message;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return "Unknown database error";
+}
+
 export async function getCertificateRequestDetail(requestId: number) {
+  try {
+    return await loadCertificateRequestDetail(requestId);
+  } catch (error) {
+    const wrapped = new Error(
+      `Could not load certificate request: ${describeDbError(error)}`
+    );
+    wrapped.cause = error;
+    throw wrapped;
+  }
+}
+
+async function loadCertificateRequestDetail(requestId: number) {
   const [request] = await db
     .select({
       id: certificateRequests.id,

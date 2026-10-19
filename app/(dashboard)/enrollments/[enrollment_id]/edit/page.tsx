@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/page-header";
 import { BackButton } from "@/components/back-button";
 import { requireRole } from "@/lib/auth/guards";
 import { EnrollmentEditForm } from "../../_components/enrollment-edit-form";
+import { displayName } from "@/lib/utils/display-name";
+import { openChangeForEnrollment } from "@/lib/utils/result-changes";
 
 export default async function EditEnrollmentPage({
   params,
@@ -24,6 +26,7 @@ export default async function EditEnrollmentPage({
       enrollmentId: enrollments.enrollmentId,
       fullName: students.fullName,
       courseCode: courses.courseCode,
+      courseName: courses.courseName,
       intakeNumber: courseIntakes.intakeNumber,
       rankAtEnrollment: enrollments.rankAtEnrollment,
       unitAtEnrollment: enrollments.unitAtEnrollment,
@@ -42,12 +45,13 @@ export default async function EditEnrollmentPage({
 
   const enrollment = rows[0];
   if (!enrollment) notFound();
+  const pendingChange = await openChangeForEnrollment(enrollmentId);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Edit Enrollment"
-        description={`${enrollment.rankAtEnrollment} ${enrollment.fullName} — ${enrollment.courseCode} (${enrollment.intakeNumber})`}
+        description={`${enrollment.rankAtEnrollment} ${displayName(enrollment.fullName, enrollment.courseCode, enrollment.courseName)} — ${enrollment.courseCode} (${enrollment.intakeNumber})`}
       >
         <BackButton fallbackHref={`/enrollments/${enrollmentId}`} />
       </PageHeader>
@@ -63,6 +67,7 @@ export default async function EditEnrollmentPage({
           averageMarks: enrollment.averageMarks,
           grade: enrollment.grade,
           position: enrollment.position,
+          pendingChange,
         }}
       />
     </div>

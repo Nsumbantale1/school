@@ -1,4 +1,5 @@
 import type { StudentServiceRecord } from "./student-service-record";
+import { displayName, nameOrderForCourses } from "./display-name";
 import { formatDateOnly } from "./format-date";
 
 function formatDate(value: Date | string | null | undefined): string {
@@ -115,7 +116,7 @@ export async function downloadServiceRecordPdf(
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.text(
-    `${record.student.rank} ${record.student.fullName}`,
+    `${record.student.rank} ${displayName(record.student.fullName, nameOrderForCourses(record.enrollments))}`,
     margin,
     y
   );

@@ -12,9 +12,9 @@ const STATUS_OPTIONS = [
   { value: "enrolled", label: "Enrolled" },
   { value: "in_progress", label: "In Progress" },
   { value: "completed", label: "Completed (passed — 55%+)" },
-  { value: "incomplete", label: "CT — Ceased Training (below 55%)" },
-  { value: "failed", label: "CT — Ceased Training (legacy failed)" },
-  { value: "indiscipline", label: "Indiscipline (ceased — 3 year ban)" },
+  { value: "failed", label: "Failed" },
+  { value: "incomplete", label: "CT — Ceased training" },
+  { value: "indiscipline", label: "CT — Indiscipline" },
   { value: "withdrawn", label: "Withdrawn" },
 ] as const;
 
@@ -86,8 +86,10 @@ export function EnrollmentStatusForm({
           />
           <p className="text-xs text-muted-foreground">
             {status === "indiscipline"
-              ? "The student cannot enroll in any course for 3 years from this date."
-              : "CT — Ceased Training (academic). Student scored below the 55% pass mark."}
+              ? "CT for an indiscipline case. The student cannot enroll in any course for 3 years from this date."
+              : status === "failed"
+                ? "The student has failed this course."
+                : "CT — the student has ceased training."}
           </p>
         </div>
       )}

@@ -71,6 +71,13 @@
       "when": 1787342000000,
       "tag": "0009_presentations",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787343000000,
+      "tag": "0010_result_changes_and_password_resets",
+      "breakpoints": true
     }
   ]
 }

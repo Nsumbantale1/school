@@ -74,13 +74,25 @@ export async function downloadExcel(
   sheetName = "Results"
 ) {
   const XLSX = await import("xlsx");
+  const { writeExcelWorkbook } = await import("./excel-file");
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
   const outName = filename.toLowerCase().endsWith(".xlsx")
     ? filename
     : `${filename}.xlsx`;
-  XLSX.writeFile(workbook, outName);
+  const bytes = await writeExcelWorkbook(workbook);
+  const blob = new Blob([new Uint8Array(bytes)], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = outName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 export function isSpreadsheetFile(file: File): boolean {

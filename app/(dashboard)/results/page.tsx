@@ -13,53 +13,50 @@ import {
 import { eq, desc } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
-import { ResultsTable } from "./_components/results-table";
+import { ResultsTable, type ResultRow } from "./_components/results-table";
 import { PrintButton } from "@/components/print-button";
-import { Plus, Upload } from "lucide-react";
+import { ClipboardCheck, Plus, Upload } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
-import { canManageResults } from "@/lib/auth/guards";
+import { canManageResults, canManageResultsForCourse } from "@/lib/auth/guards";
+import { openChangesForResults } from "@/lib/utils/result-changes";
 
 export default async function ResultsPage() {
   const user = await getSessionUser();
 
-  let data: Array<{
-    resultId: number;
-    studentArmyNumber: string;
-    fullName: string;
-    unit: string | null;
-    rank: string;
-    courseCode: string;
-    intakeNumber: string;
-    subjectName: string;
-    marksObtained: string;
-    maxMarks: string;
-    grade: string | null;
-    enteredByName: string | null;
-  }> = [];
+  let data: ResultRow[] = [];
 
   try {
-    data = await db
-      .select({
-        resultId: results.resultId,
-        studentArmyNumber: students.armyNumber,
-        fullName: students.fullName,
-        unit: students.unit,
-        rank: enrollments.rankAtEnrollment,
-        courseCode: courses.courseCode,
-        intakeNumber: courseIntakes.intakeNumber,
-        subjectName: results.subjectName,
-        marksObtained: results.marksObtained,
-        maxMarks: results.maxMarks,
-        grade: results.grade,
-        enteredByName: users.name,
-      })
-      .from(results)
-      .innerJoin(enrollments, eq(results.enrollmentId, enrollments.enrollmentId))
-      .innerJoin(students, eq(enrollments.studentArmyNumber, students.armyNumber))
-      .innerJoin(courseIntakes, eq(enrollments.intakeId, courseIntakes.intakeId))
-      .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
-      .leftJoin(users, eq(results.enteredBy, users.id))
-      .orderBy(desc(results.createdAt));
+    const [rows, openChanges] = await Promise.all([
+      db
+        .select({
+          resultId: results.resultId,
+          studentArmyNumber: students.armyNumber,
+          fullName: students.fullName,
+          unit: students.unit,
+          rank: enrollments.rankAtEnrollment,
+          courseId: courseIntakes.courseId,
+          courseCode: courses.courseCode,
+          intakeNumber: courseIntakes.intakeNumber,
+          subjectName: results.subjectName,
+          marksObtained: results.marksObtained,
+          maxMarks: results.maxMarks,
+          grade: results.grade,
+          enteredByName: users.name,
+        })
+        .from(results)
+        .innerJoin(enrollments, eq(results.enrollmentId, enrollments.enrollmentId))
+        .innerJoin(students, eq(enrollments.studentArmyNumber, students.armyNumber))
+        .innerJoin(courseIntakes, eq(enrollments.intakeId, courseIntakes.intakeId))
+        .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
+        .leftJoin(users, eq(results.enteredBy, users.id))
+        .orderBy(desc(results.createdAt)),
+      openChangesForResults(),
+    ]);
+    data = rows.map(({ courseId, ...row }) => ({
+      ...row,
+      canRequestChange: !!user && canManageResultsForCourse(user, courseId),
+      pendingChange: openChanges.get(row.resultId) ?? null,
+    }));
   } catch (error) {
     console.error("Failed to load results page data:", error);
   }
@@ -68,6 +65,14 @@ export default async function ResultsPage() {
     <div className="space-y-6">
       <PageHeader title="Results" description="Student exam and assessment results">
         <PrintButton title="Results — School of Field Artillery" />
+        {user && user.role !== "viewer" && (
+          <Button variant="outline" asChild>
+            <Link href="/results/changes">
+              <ClipboardCheck className="mr-2 h-4 w-4" />
+              Result changes
+            </Link>
+          </Button>
+        )}
         {user && canManageResults(user.role) && (
           <>
             <Button variant="outline" asChild>

@@ -9,6 +9,7 @@ import {
   BookOpen,
   Calendar,
   ClipboardList,
+  ClipboardCheck,
   Award,
   FileBarChart,
   TrendingUp,
@@ -51,6 +52,8 @@ interface NavGroup {
   items: NavItem[];
 }
 
+const VIEW_ALL = ["admin", "chief_instructor", "commandant"];
+
 const navGroups: NavGroup[] = [
   {
     label: "Operations",
@@ -69,10 +72,16 @@ const navGroups: NavGroup[] = [
       { title: "Enrollments", href: "/enrollments", icon: ClipboardList },
       { title: "Results", href: "/results", icon: Award },
       {
+        title: "Result Changes",
+        href: "/results/changes",
+        icon: ClipboardCheck,
+        roles: [...VIEW_ALL, "instructor"],
+      },
+      {
         title: "Certificates",
         href: "/certificates",
         icon: FileText,
-        roles: ["admin", "chief_instructor", "commandant"],
+        roles: VIEW_ALL,
       },
     ],
   },
@@ -91,14 +100,14 @@ const navGroups: NavGroup[] = [
   {
     label: "Admin",
     items: [
-      { title: "Users", href: "/users", icon: UserCog, adminOnly: true },
-      { title: "Activity Logs", href: "/audit-logs", icon: History, adminOnly: true },
-      { title: "Documents", href: "/documents", icon: FileText, adminOnly: true },
+      { title: "Users", href: "/users", icon: UserCog, roles: VIEW_ALL },
+      { title: "Activity Logs", href: "/audit-logs", icon: History, roles: VIEW_ALL },
+      { title: "Documents", href: "/documents", icon: FileText, roles: VIEW_ALL },
       {
         title: "Cert. Signatures",
         href: "/settings/signatures",
         icon: Award,
-        adminOnly: true,
+        roles: VIEW_ALL,
       },
       {
         title: "Backup",
@@ -159,15 +168,6 @@ export function AppSidebar({ user }: AppSidebarProps) {
           const visibleItems = group.items.filter((item) => {
             if (item.roles) return item.roles.includes(user.role);
             if (item.adminOnly) return isAdmin;
-            // Officials mainly use Certificates — hide heavy ops menus
-            if (
-              user.role === "chief_instructor" ||
-              user.role === "commandant"
-            ) {
-              return (
-                item.href === "/dashboard" || item.href === "/certificates"
-              );
-            }
             return true;
           });
 
@@ -188,7 +188,8 @@ export function AppSidebar({ user }: AppSidebarProps) {
                         !(
                           item.href === "/analytics" &&
                           pathname.startsWith("/analytics/comparative")
-                        )) ||
+                        ) &&
+                        !(item.href === "/results" && pathname.startsWith("/results/changes"))) ||
                       (item.href === "/analytics/comparative" &&
                         pathname.startsWith("/analytics/comparative"));
                     return (

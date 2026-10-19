@@ -16,6 +16,7 @@ import { ExportButtons } from "@/components/export-buttons";
 import { AlertTriangle, XCircle } from "lucide-react";
 import Link from "next/link";
 import { studentPath } from "@/lib/utils";
+import { displayName } from "@/lib/utils/display-name";
 
 interface PageProps {
   searchParams: Promise<{ year?: string }>;
@@ -105,9 +106,19 @@ export default async function FailuresPage({ searchParams }: PageProps) {
     { key: "status", header: "Status" },
   ];
 
-  const formatAvg = <T extends { averageMarks: string | null }>(rows: T[]) =>
+  const formatAvg = <
+    T extends {
+      averageMarks: string | null;
+      fullName: string;
+      courseCode: string;
+      courseName: string;
+    },
+  >(
+    rows: T[]
+  ) =>
     rows.map((r) => ({
       ...r,
+      fullName: displayName(r.fullName, r.courseCode, r.courseName),
       averageMarks: r.averageMarks
         ? parseFloat(r.averageMarks).toFixed(1)
         : "N/A",
@@ -227,7 +238,8 @@ export default async function FailuresPage({ searchParams }: PageProps) {
                           href={studentPath(row.armyNumber)}
                           className="hover:underline font-medium"
                         >
-                          {row.rank} {row.fullName}
+                          {row.rank}{" "}
+                          {displayName(row.fullName, row.courseCode, row.courseName)}
                         </Link>
                       </td>
                       <td className="py-3 px-2 font-mono text-sm">
@@ -304,7 +316,8 @@ export default async function FailuresPage({ searchParams }: PageProps) {
                           href={studentPath(row.armyNumber)}
                           className="hover:underline font-medium"
                         >
-                          {row.rank} {row.fullName}
+                          {row.rank}{" "}
+                          {displayName(row.fullName, row.courseCode, row.courseName)}
                         </Link>
                       </td>
                       <td className="py-3 px-2 font-mono text-sm">

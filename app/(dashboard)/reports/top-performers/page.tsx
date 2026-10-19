@@ -16,6 +16,7 @@ import { ExportButtons } from "@/components/export-buttons";
 import { Trophy, Medal, Award } from "lucide-react";
 import Link from "next/link";
 import { studentPath } from "@/lib/utils";
+import { displayName } from "@/lib/utils/display-name";
 
 interface PageProps {
   searchParams: Promise<{ year?: string; limit?: string }>;
@@ -78,6 +79,7 @@ export default async function TopPerformersPage({ searchParams }: PageProps) {
 
   const exportData = topPerformers.map((r) => ({
     ...r,
+    fullName: displayName(r.fullName, r.courseCode, r.courseName),
     averageMarks: r.averageMarks
       ? parseFloat(r.averageMarks).toFixed(1)
       : "N/A",
@@ -200,7 +202,8 @@ export default async function TopPerformersPage({ searchParams }: PageProps) {
                           href={studentPath(row.armyNumber)}
                           className="hover:underline font-medium"
                         >
-                          {row.rank} {row.fullName}
+                          {row.rank}{" "}
+                          {displayName(row.fullName, row.courseCode, row.courseName)}
                         </Link>
                       </td>
                       <td className="py-3 px-2 font-mono text-sm">

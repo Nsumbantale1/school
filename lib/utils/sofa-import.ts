@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, isNotNull, or } from "drizzle-orm";
 import { db } from "../db";
 import {
   courses,
@@ -46,20 +46,37 @@ export function normalizeArmyNumber(armyNumber: string): string {
 export async function importParsedSofaWorkbook(
   input: ParsedSofaWorkbook,
   enteredBy?: number | null,
-  options: { keepExistingStudentDetails?: boolean } = {}
+  options: { keepExistingStudentDetails?: boolean; targetIntakeId?: number } = {}
 ): Promise<SofaImportSummary> {
   const parsed = {
     ...input,
     intakeNumber: intakeNumberWithoutStream(input.intakeNumber),
     students: input.students.map((s) => ({ ...s, armyNumber: normalizeArmyNumber(s.armyNumber) })),
   };
+
+  let courseId: number;
+  let intakeId: number;
+
+  if (options.targetIntakeId) {
+    const [target] = await db
+      .select({
+        intakeId: courseIntakes.intakeId,
+        courseId: courseIntakes.courseId,
+      })
+      .from(courseIntakes)
+      .where(eq(courseIntakes.intakeId, options.targetIntakeId))
+      .limit(1);
+    if (!target) throw new Error("Intake not found.");
+    courseId = target.courseId;
+    intakeId = target.intakeId;
+  } else {
   const [existingCourse] = await db
     .select()
     .from(courses)
     .where(eq(courses.courseCode, parsed.courseCode))
     .limit(1);
 
-  let courseId = existingCourse?.courseId;
+  courseId = existingCourse?.courseId ?? 0;
   if (!courseId) {
     const [created] = await db
       .insert(courses)
@@ -83,6 +100,45 @@ export async function importParsedSofaWorkbook(
         updatedAt: new Date(),
       })
       .where(eq(courses.courseId, courseId));
+  }
+
+  const [existingIntake] = await db
+    .select()
+    .from(courseIntakes)
+    .where(
+      and(
+        eq(courseIntakes.courseId, courseId),
+        eq(courseIntakes.intakeNumber, parsed.intakeNumber)
+      )
+    )
+    .limit(1);
+
+  intakeId = existingIntake?.intakeId ?? 0;
+  if (!intakeId) {
+    const [created] = await db
+      .insert(courseIntakes)
+      .values({
+        courseId,
+        intakeNumber: parsed.intakeNumber,
+        year: parsed.year,
+        startDate: parsed.startDate,
+        endDate: parsed.endDate,
+        isActive: true,
+      })
+      .returning({ intakeId: courseIntakes.intakeId });
+    intakeId = created.intakeId;
+  } else {
+    await db
+      .update(courseIntakes)
+      .set({
+        year: parsed.year,
+        startDate: parsed.startDate,
+        endDate: parsed.endDate,
+        isActive: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(courseIntakes.intakeId, intakeId));
+  }
   }
 
   const subjectCatalog = new Map<string, number>();
@@ -124,44 +180,6 @@ export async function importParsedSofaWorkbook(
       });
     }
     sortOrder += 1;
-  }
-
-  const [existingIntake] = await db
-    .select()
-    .from(courseIntakes)
-    .where(
-      and(
-        eq(courseIntakes.courseId, courseId),
-        eq(courseIntakes.intakeNumber, parsed.intakeNumber)
-      )
-    )
-    .limit(1);
-
-  let intakeId = existingIntake?.intakeId;
-  if (!intakeId) {
-    const [created] = await db
-      .insert(courseIntakes)
-      .values({
-        courseId,
-        intakeNumber: parsed.intakeNumber,
-        year: parsed.year,
-        startDate: parsed.startDate,
-        endDate: parsed.endDate,
-        isActive: true,
-      })
-      .returning({ intakeId: courseIntakes.intakeId });
-    intakeId = created.intakeId;
-  } else {
-    await db
-      .update(courseIntakes)
-      .set({
-        year: parsed.year,
-        startDate: parsed.startDate,
-        endDate: parsed.endDate,
-        isActive: true,
-        updatedAt: new Date(),
-      })
-      .where(eq(courseIntakes.intakeId, intakeId));
   }
 
   let resultCount = 0;
@@ -301,13 +319,84 @@ export async function importParsedSofaWorkbook(
   };
 }
 
+/**
+ * Army numbers in the workbook whose marks are already recorded for that intake.
+ * A SOFA import replaces marks wholesale, so these must go through result-change approval.
+ */
+async function studentsWithRecordedMarks(
+  parsedList: ParsedSofaWorkbook[],
+  targetIntakeId?: number
+) {
+  const found: string[] = [];
+  for (const input of parsedList) {
+    const [intake] = targetIntakeId
+      ? [{ intakeId: targetIntakeId }]
+      : await db
+          .select({ intakeId: courseIntakes.intakeId })
+          .from(courseIntakes)
+          .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
+          .where(
+            and(
+              eq(courses.courseCode, input.courseCode),
+              eq(courseIntakes.intakeNumber, intakeNumberWithoutStream(input.intakeNumber))
+            )
+          )
+          .limit(1);
+    if (!intake) continue;
+
+    const armyNumbers = input.students.map((s) => normalizeArmyNumber(s.armyNumber));
+    if (armyNumbers.length === 0) continue;
+
+    const rows = await db
+      .selectDistinct({ armyNumber: enrollments.studentArmyNumber })
+      .from(enrollments)
+      .leftJoin(results, eq(results.enrollmentId, enrollments.enrollmentId))
+      .where(
+        and(
+          eq(enrollments.intakeId, intake.intakeId),
+          inArray(enrollments.studentArmyNumber, armyNumbers),
+          or(isNotNull(results.resultId), isNotNull(enrollments.averageMarks))
+        )
+      );
+    found.push(...rows.map((r) => r.armyNumber));
+  }
+  return found;
+}
+
 export async function importSofaWorkbookFromBuffer(
   buffer: Buffer | Uint8Array,
   filename: string,
-  enteredBy?: number | null
+  enteredBy?: number | null,
+  options: { protectRecordedMarks?: boolean; targetIntakeId?: number } = {}
 ): Promise<SofaImportSummary> {
-  const parsedList = parseSofaWorkbookAll(buffer, filename);
-  return importParsedSofaWorkbookList(parsedList, enteredBy);
+  let fallback: { courseCode: string; courseName: string; intakeNumber: string } | undefined;
+  if (options.targetIntakeId) {
+    const [target] = await db
+      .select({
+        courseCode: courses.courseCode,
+        courseName: courses.courseName,
+        intakeNumber: courseIntakes.intakeNumber,
+      })
+      .from(courseIntakes)
+      .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
+      .where(eq(courseIntakes.intakeId, options.targetIntakeId))
+      .limit(1);
+    if (!target) throw new Error("Intake not found.");
+    fallback = target;
+  }
+  const parsedList = parseSofaWorkbookAll(buffer, filename, fallback);
+  if (options.protectRecordedMarks) {
+    const recorded = await studentsWithRecordedMarks(parsedList, options.targetIntakeId);
+    if (recorded.length > 0) {
+      const sample = recorded.slice(0, 5).join(", ");
+      throw new Error(
+        `${recorded.length} student(s) in this workbook already have marks recorded (${sample}${
+          recorded.length > 5 ? ", …" : ""
+        }). Recorded marks can only be changed through a result-change request approved by the Chief Instructor and the Commandant.`
+      );
+    }
+  }
+  return importParsedSofaWorkbookList(parsedList, enteredBy, options);
 }
 
 export async function importSofaWorkbookFromPath(
@@ -321,7 +410,8 @@ export async function importSofaWorkbookFromPath(
 
 async function importParsedSofaWorkbookList(
   parsedList: ParsedSofaWorkbook[],
-  enteredBy?: number | null
+  enteredBy?: number | null,
+  options: { keepExistingStudentDetails?: boolean; targetIntakeId?: number } = {}
 ): Promise<SofaImportSummary> {
   if (parsedList.length === 0) {
     throw new Error("No parseable sheets found in workbook.");
@@ -329,7 +419,7 @@ async function importParsedSofaWorkbookList(
 
   let combined: SofaImportSummary | null = null;
   for (const parsed of parsedList) {
-    const summary = await importParsedSofaWorkbook(parsed, enteredBy);
+    const summary = await importParsedSofaWorkbook(parsed, enteredBy, options);
     if (!combined) {
       combined = { ...summary };
     } else {

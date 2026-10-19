@@ -26,7 +26,7 @@ import {
   User,
 } from "lucide-react";
 import type { StudentServiceRecord } from "@/lib/utils/student-service-record";
-import { displayName } from "@/lib/utils/display-name";
+import { displayName, nameOrderForCourses } from "@/lib/utils/display-name";
 import { formatDateOnly } from "@/lib/utils/format-date";
 
 function formatDate(date: Date | string | null) {
@@ -65,6 +65,7 @@ function SummaryStat({
 export function ServiceRecordView({ record }: { record: StudentServiceRecord }) {
   const { student, summary, activeBan, indisciplineHistory, enrollments } =
     record;
+  const personName = displayName(student.fullName, nameOrderForCourses(enrollments));
 
   return (
     <div className="service-record relative space-y-6">
@@ -116,7 +117,7 @@ export function ServiceRecordView({ record }: { record: StudentServiceRecord }) 
                 <h2 className="text-2xl font-bold">
                   {student.rank}{" "}
                   <span className="tracking-wide">
-                    {displayName(student.fullName)}
+                    {personName}
                   </span>
                 </h2>
                 <p className="font-mono text-sm text-muted-foreground mt-1 print:text-black">

@@ -9,6 +9,7 @@ import { BackButton } from "@/components/back-button";
 import { FileText, Pencil } from "lucide-react";
 import { decodeArmyNumber, studentPath } from "@/lib/utils";
 import { getStudentServiceRecord } from "@/lib/utils/student-service-record";
+import { displayName, nameOrderForCourses } from "@/lib/utils/display-name";
 import { getSessionUser } from "@/lib/auth";
 import { canManageStudents } from "@/lib/auth/guards";
 import { ServiceRecordView } from "../_components/service-record-view";
@@ -26,13 +27,17 @@ export default async function StudentServiceRecordPage({ params }: PageProps) {
   const record = await getStudentServiceRecord(army_number);
   if (!record) notFound();
 
-  const printTitle = `STR — ${record.student.rank} ${record.student.fullName} (${record.student.armyNumber})`;
+  const personName = displayName(
+    record.student.fullName,
+    nameOrderForCourses(record.enrollments)
+  );
+  const printTitle = `STR — ${record.student.rank} ${personName} (${record.student.armyNumber})`;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Student Training Record"
-        description={`${record.student.rank} ${record.student.fullName} · ${record.student.armyNumber}`}
+        description={`${record.student.rank} ${personName} · ${record.student.armyNumber}`}
       >
         <DownloadSsrButton record={record} />
         <PrintButton title={printTitle} />

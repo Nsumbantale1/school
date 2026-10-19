@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, RefreshCw } from "lucide-react";
 import { reviseCertificateRequest } from "../actions";
+import { displayName } from "@/lib/utils/display-name";
 
 type StudentRow = {
   enrollmentId: number;
@@ -23,11 +24,15 @@ export function ReviseRequestForm({
   eligible,
   initiallySelected,
   notes: initialNotes,
+  courseCode,
+  courseName,
 }: {
   requestId: number;
   eligible: StudentRow[];
   initiallySelected: number[];
   notes: string | null;
+  courseCode?: string;
+  courseName?: string;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<number>>(
@@ -103,7 +108,7 @@ export function ReviseRequestForm({
             />
             <span className="font-mono text-xs">{s.armyNumber}</span>
             <span>
-              {s.rank} {s.fullName}
+              {s.rank} {displayName(s.fullName, courseCode, courseName)}
             </span>
             <span className="ml-auto text-xs">{s.grade ?? ""}</span>
           </label>

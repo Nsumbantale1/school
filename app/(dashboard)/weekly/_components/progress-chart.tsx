@@ -17,15 +17,17 @@ export type ChartStudent = {
   armyNumber: string;
   rank: string;
   fullName: string;
+  unit: string | null;
 };
 
 type Summary = { total: number; average: number };
 
 const STICKY = [
-  { key: "sno", label: "S/No", width: 44 },
-  { key: "army", label: "Army No", width: 92 },
-  { key: "rank", label: "Rank", width: 64 },
-  { key: "name", label: "Full name", width: 190 },
+  { key: "sno", label: "S/NO", width: 36 },
+  { key: "army", label: "ARMY NO", width: 88 },
+  { key: "rank", label: "RANK", width: 52 },
+  { key: "name", label: "FULL NAME", width: 168 },
+  { key: "unit", label: "UNIT", width: 88 },
 ] as const;
 
 function formatMark(value: number): string {
@@ -42,7 +44,8 @@ function readMark(raw: string | undefined): number | null {
 export function ProgressChart({
   intakeId,
   title,
-  periodLabel,
+  fromLabel,
+  toLabel,
   columns,
   students,
   initialMarks,
@@ -52,7 +55,8 @@ export function ProgressChart({
 }: {
   intakeId: number;
   title: string;
-  periodLabel: string;
+  fromLabel: string;
+  toLabel: string;
   columns: ProgressColumn[];
   students: ChartStudent[];
   initialMarks: Record<string, string>;
@@ -162,11 +166,13 @@ export function ProgressChart({
   const leftOf = (index: number) =>
     STICKY.slice(0, index).reduce((sum, column) => sum + column.width, 0);
 
+  const summaryHeads = ["TOTAL MARKS", "AVERAGE", "POINT"];
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-3 no-print">
+      <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
         <p className="text-xs text-muted-foreground">
-          Weekly tests are numbered. Monthly tests are M-1, M-2, and so on, after every three weeks.
+          Weeks run 1, 2, 3, then M-1, and the same after every three weeks.
           {canEdit ? " Click a cell to enter a mark out of 100." : " View only."}
         </p>
         <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
@@ -175,40 +181,51 @@ export function ProgressChart({
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border bg-card print:overflow-visible">
-        <table className="border-collapse text-xs">
+      <div className="overflow-x-auto bg-white text-black print:overflow-visible">
+        <table className="border-collapse text-[11px]">
           <thead>
-            <tr className="bg-[#1a5c2e] text-white">
+            <tr>
               <th
-                colSpan={4}
-                className="border border-[#1a5c2e] px-2 py-2 text-left text-[11px] font-semibold tracking-wide"
+                colSpan={STICKY.length}
+                className="border border-black px-3 py-2 text-left align-bottom text-[12px] font-bold uppercase tracking-wide"
               >
-                <div>{title}</div>
-                <div className="font-normal text-white/80">{periodLabel}</div>
+                <div>Progress chart for {title} intake</div>
+                <div className="mt-1 flex flex-wrap gap-x-8 font-semibold normal-case tracking-normal">
+                  <span>From {fromLabel === "—" ? "………………" : fromLabel}</span>
+                  <span>To {toLabel === "—" ? "………………" : toLabel}</span>
+                </div>
               </th>
               <th
                 colSpan={columns.length}
-                className="border border-white/20 px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.14em]"
+                className="border border-black px-2 py-2 text-center text-[11px] font-bold uppercase tracking-[0.18em]"
               >
-                Weekly & monthly tests
+                Number of weeks
               </th>
-              <th colSpan={3} className="border border-white/20 px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wide">
+              <th
+                colSpan={3}
+                className="border border-black px-2 py-2 text-center text-[11px] font-bold uppercase tracking-[0.14em]"
+              >
                 Weekly test
               </th>
               {monthPeriods.length > 0 && (
-                <th colSpan={3} className="border border-white/20 px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wide">
+                <th
+                  colSpan={3}
+                  className="border border-black px-2 py-2 text-center text-[11px] font-bold uppercase tracking-[0.14em]"
+                >
                   Monthly test
                 </th>
               )}
             </tr>
-            <tr className="bg-muted/70 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <tr>
               {STICKY.map((column, index) => (
                 <th
                   key={column.key}
-                  className="sticky z-20 border bg-muted px-1.5 py-2 text-left font-semibold"
-                  style={{ left: leftOf(index), minWidth: column.width, width: column.width }}
+                  className="sticky z-20 border border-black bg-white px-1 py-1 align-bottom font-bold"
+                  style={{ left: leftOf(index), minWidth: column.width, width: column.width, height: 118 }}
                 >
-                  {column.label}
+                  <span className="inline-block [writing-mode:vertical-rl] rotate-180 tracking-wide">
+                    {column.label}
+                  </span>
                 </th>
               ))}
               {columns.map((column) => {
@@ -219,25 +236,37 @@ export function ProgressChart({
                   <th
                     key={column.key}
                     className={cn(
-                      "border px-1 py-2 text-center font-semibold",
-                      column.kind === "month" && "bg-amber-100 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100",
-                      current && "ring-2 ring-inset ring-primary"
+                      "border border-black bg-white px-0.5 py-1 text-center align-bottom font-bold",
+                      column.kind === "month" && "bg-neutral-100",
+                      current && "outline outline-2 outline-offset-[-2px] outline-black"
                     )}
-                    style={{ minWidth: column.kind === "month" ? 52 : 46 }}
+                    style={{ minWidth: column.kind === "month" ? 42 : 36, height: 118 }}
                   >
                     {column.label}
                   </th>
                 );
               })}
-              {["Total", "Average", "Point"].map((label) => (
-                <th key={`w-${label}`} className="border bg-muted px-1.5 py-2 text-center font-semibold" style={{ minWidth: 64 }}>
-                  {label}
+              {summaryHeads.map((label) => (
+                <th
+                  key={`w-${label}`}
+                  className="border border-black bg-white px-1 py-1 align-bottom font-bold"
+                  style={{ minWidth: 36, height: 118 }}
+                >
+                  <span className="inline-block [writing-mode:vertical-rl] rotate-180 tracking-wide">
+                    {label}
+                  </span>
                 </th>
               ))}
               {monthPeriods.length > 0 &&
-                ["Total", "Average", "Point"].map((label) => (
-                  <th key={`m-${label}`} className="border bg-amber-50 px-1.5 py-2 text-center font-semibold dark:bg-amber-950/30" style={{ minWidth: 64 }}>
-                    {label}
+                summaryHeads.map((label) => (
+                  <th
+                    key={`m-${label}`}
+                    className="border border-black bg-neutral-100 px-1 py-1 align-bottom font-bold"
+                    style={{ minWidth: 36, height: 118 }}
+                  >
+                    <span className="inline-block [writing-mode:vertical-rl] rotate-180 tracking-wide">
+                      {label}
+                    </span>
                   </th>
                 ))}
             </tr>
@@ -245,7 +274,7 @@ export function ProgressChart({
           <tbody>
             {students.length === 0 ? (
               <tr>
-                <td colSpan={4 + columns.length + 6} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <td colSpan={STICKY.length + columns.length + 6} className="border border-black px-4 py-10 text-center text-sm">
                   No students are enrolled on this intake.
                 </td>
               </tr>
@@ -254,30 +283,36 @@ export function ProgressChart({
                 const weekly = summaries.weekly.get(student.enrollmentId);
                 const monthly = summaries.monthly.get(student.enrollmentId);
                 return (
-                  <tr key={student.enrollmentId} className="odd:bg-background even:bg-muted/20">
+                  <tr key={student.enrollmentId}>
                     <td
-                      className="sticky z-10 border bg-card px-1.5 py-1 text-center tabular-nums"
+                      className="sticky z-10 border border-black bg-white px-1 py-0.5 text-center tabular-nums"
                       style={{ left: leftOf(0), minWidth: STICKY[0].width }}
                     >
                       {index + 1}
                     </td>
                     <td
-                      className="sticky z-10 border bg-card px-1.5 py-1 font-mono"
+                      className="sticky z-10 border border-black bg-white px-1 py-0.5 font-mono"
                       style={{ left: leftOf(1), minWidth: STICKY[1].width }}
                     >
                       {student.armyNumber}
                     </td>
                     <td
-                      className="sticky z-10 border bg-card px-1.5 py-1"
+                      className="sticky z-10 border border-black bg-white px-1 py-0.5"
                       style={{ left: leftOf(2), minWidth: STICKY[2].width }}
                     >
                       {student.rank}
                     </td>
                     <td
-                      className="sticky z-10 border bg-card px-1.5 py-1 font-medium"
+                      className="sticky z-10 border border-black bg-white px-1 py-0.5 font-medium"
                       style={{ left: leftOf(3), minWidth: STICKY[3].width }}
                     >
                       {student.fullName}
+                    </td>
+                    <td
+                      className="sticky z-10 border border-black bg-white px-1 py-0.5"
+                      style={{ left: leftOf(4), minWidth: STICKY[4].width }}
+                    >
+                      {student.unit ?? ""}
                     </td>
                     {columns.map((column) => {
                       const key = progressCellKey(student.enrollmentId, column.kind, column.period);
@@ -288,9 +323,9 @@ export function ProgressChart({
                         <td
                           key={column.key}
                           className={cn(
-                            "border p-0 text-center",
-                            column.kind === "month" && "bg-amber-50/80 dark:bg-amber-950/20",
-                            current && "bg-primary/5"
+                            "border border-black p-0 text-center",
+                            column.kind === "month" && "bg-neutral-100",
+                            current && "bg-neutral-50"
                           )}
                         >
                           <input
@@ -302,7 +337,7 @@ export function ProgressChart({
                               setMarks((prev) => ({ ...prev, [key]: event.target.value }))
                             }
                             onBlur={(event) => void commit(student, column, event.target.value)}
-                            className="h-8 w-full bg-transparent px-1 text-center tabular-nums outline-none focus:bg-background focus:ring-2 focus:ring-inset focus:ring-primary disabled:opacity-80"
+                            className="h-7 w-full bg-transparent px-0.5 text-center text-[11px] tabular-nums text-black outline-none focus:bg-white focus:ring-1 focus:ring-inset focus:ring-black disabled:opacity-100"
                           />
                         </td>
                       );
@@ -336,8 +371,8 @@ function SummaryCells({
   monthly?: boolean;
 }) {
   const className = cn(
-    "border px-1.5 py-1 text-center font-medium tabular-nums",
-    monthly && "bg-amber-50/80 dark:bg-amber-950/20"
+    "border border-black px-1 py-0.5 text-center font-medium tabular-nums",
+    monthly && "bg-neutral-100"
   );
   return (
     <>

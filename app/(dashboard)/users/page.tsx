@@ -4,15 +4,22 @@ import { asc, eq } from "drizzle-orm";
 import { ShieldCheck, UserCheck, UserX, Users } from "lucide-react";
 import { db } from "@/lib/db";
 import { courses, users } from "@/lib/db/schema";
-import { requireRole } from "@/lib/auth/guards";
+import { canManageUsers, requireRole, VIEW_ALL_ROLES } from "@/lib/auth/guards";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
+import { listOpenPasswordResets } from "@/lib/utils/password-reset";
 import { UsersManager } from "./_components/users-manager";
 
-export default async function UsersPage() {
-  const me = await requireRole(["admin"]);
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reset?: string }>;
+}) {
+  const me = await requireRole(VIEW_ALL_ROLES);
+  const readOnly = !canManageUsers(me.role);
+  const { reset } = await searchParams;
 
-  const [rows, courseRows] = await Promise.all([
+  const [rows, courseRows, resetRequests] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -34,16 +41,22 @@ export default async function UsersPage() {
       .from(courses)
       .where(eq(courses.isActive, true))
       .orderBy(asc(courses.courseCode)),
+    listOpenPasswordResets().catch(() => []),
   ]);
 
   const active = rows.filter((u) => u.isActive).length;
   const admins = rows.filter((u) => u.role === "admin" && u.isActive).length;
+  const initialResetUserId = reset ? Number(reset) : undefined;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Users"
-        description="Manage system accounts, roles and access"
+        description={
+          readOnly
+            ? "System accounts, roles and access (view only)"
+            : "Manage system accounts, roles and access"
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -55,7 +68,17 @@ export default async function UsersPage() {
 
       <UsersManager
         currentUserId={me.userId}
+        readOnly={readOnly}
         courses={courseRows}
+        resetRequests={resetRequests.map((r) => ({
+          ...r,
+          createdAt: r.createdAt.toISOString(),
+        }))}
+        initialResetUserId={
+          initialResetUserId && Number.isInteger(initialResetUserId)
+            ? initialResetUserId
+            : undefined
+        }
         users={rows.map((u) => ({
           ...u,
           lastLogin: u.lastLogin?.toISOString() ?? null,

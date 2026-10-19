@@ -54,7 +54,7 @@ export default async function CertificatesIndexPage() {
       eq(certificateRequests.intakeId, courseIntakes.intakeId)
     )
     .orderBy(desc(certificateRequests.createdAt))
-    .limit(100);
+    .limit(500);
 
   const queue =
     user.role === "chief_instructor"

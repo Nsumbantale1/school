@@ -39,6 +39,23 @@ import {
 /** Stays well under the 16 pooled Neon connections in lib/db. */
 const PRINT_CONCURRENCY = 8;
 
+/** Approval is already saved; a dropped notification must not fail the action. */
+async function notifyBestEffort(task: Promise<unknown>) {
+  try {
+    await task;
+  } catch (error) {
+    const cause =
+      error instanceof Error && error.cause instanceof Error
+        ? error.cause.message
+        : "";
+    console.error(
+      "Certificate notification failed:",
+      error instanceof Error ? error.message : error,
+      cause
+    );
+  }
+}
+
 async function mapInChunks<T, R>(
   list: T[],
   size: number,
@@ -162,12 +179,12 @@ export async function createCertificateRequest(input: {
 
   if (submit) {
     const label = await courseLabelForIntake(intake.intakeId);
-    await notifyCertificatePendingChiefInstructor({
+    await notifyBestEffort(notifyCertificatePendingChiefInstructor({
       requestId: created.id,
       requestNumber,
       courseLabel: label,
       certificateCount: enrollRows.length,
-    });
+    }));
   }
 
   revalidateCertPaths(created.id);
@@ -279,12 +296,12 @@ export async function reviseCertificateRequest(input: {
 
   if (resubmit) {
     const label = await courseLabelForIntake(req.intakeId);
-    await notifyCertificatePendingChiefInstructor({
+    await notifyBestEffort(notifyCertificatePendingChiefInstructor({
       requestId: req.id,
       requestNumber: req.requestNumber,
       courseLabel: label,
       certificateCount: enrollRows.length,
-    });
+    }));
   }
 
   revalidateCertPaths(req.id);
@@ -340,12 +357,12 @@ export async function submitCertificateRequest(requestId: number) {
   );
 
   const label = await courseLabelForIntake(req.intakeId);
-  await notifyCertificatePendingChiefInstructor({
+  await notifyBestEffort(notifyCertificatePendingChiefInstructor({
     requestId,
     requestNumber: req.requestNumber,
     courseLabel: label,
     certificateCount: req.certificateCount,
-  });
+  }));
 
   revalidateCertPaths(requestId);
   return { success: true as const };
@@ -389,18 +406,18 @@ export async function approveCertificateRequest(requestId: number) {
     );
 
     const label = await courseLabelForIntake(req.intakeId);
-    await notifyCertificatePendingCommandant({
+    await notifyBestEffort(notifyCertificatePendingCommandant({
       requestId,
       requestNumber: req.requestNumber,
       courseLabel: label,
       certificateCount: req.certificateCount,
-    });
-    await notifyAdminChiefInstructorApproved({
+    }));
+    await notifyBestEffort(notifyAdminChiefInstructorApproved({
       requestId,
       requestNumber: req.requestNumber,
       courseLabel: label,
       certificateCount: req.certificateCount,
-    });
+    }));
 
     revalidateCertPaths(requestId);
     return {
@@ -437,12 +454,12 @@ export async function approveCertificateRequest(requestId: number) {
     );
 
     const label = await courseLabelForIntake(req.intakeId);
-    await notifyCertificateFullyApproved({
+    await notifyBestEffort(notifyCertificateFullyApproved({
       requestId,
       requestNumber: req.requestNumber,
       courseLabel: label,
       certificateCount: req.certificateCount,
-    });
+    }));
 
     revalidateCertPaths(requestId);
     return {
@@ -530,7 +547,7 @@ export async function prepareCertificate(enrollmentId: number) {
     return { success: false as const, error: authz.reason };
   }
 
-  const result = await getCertificateData(enrollmentId);
+  const result = await getCertificateData(enrollmentId, authz.requestId);
   if (!result.success) return result;
 
   const recorded = await recordCertificateIssue(result.data, user.userId);
@@ -613,7 +630,7 @@ export async function prepareCertificatesForRequest(
 
   const prepared = await mapInChunks(wanted, PRINT_CONCURRENCY, async (item) => ({
     item,
-    result: await getCertificateData(item.enrollmentId),
+    result: await getCertificateData(item.enrollmentId, requestId),
   }));
 
   const dataList: CertificateData[] = [];

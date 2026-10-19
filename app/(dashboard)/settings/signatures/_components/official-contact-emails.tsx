@@ -25,8 +25,10 @@ type OfficialUser = {
 
 export function OfficialContactEmails({
   officials,
+  readOnly = false,
 }: {
   officials: OfficialUser[];
+  readOnly?: boolean;
 }) {
   const [pendingId, setPendingId] = useState<number | null>(null);
 
@@ -69,7 +71,19 @@ export function OfficialContactEmails({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {officials.map((u) => (
+        {readOnly &&
+          officials.map((u) => (
+            <div key={u.id} className="grid gap-2 sm:grid-cols-[1fr_2fr]">
+              <div>
+                <p className="text-sm font-medium">{u.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  @{u.username} · {u.role.replace(/_/g, " ")}
+                </p>
+              </div>
+              <p className="text-sm">{u.email || "No email set"}</p>
+            </div>
+          ))}
+        {!readOnly && officials.map((u) => (
           <form
             key={u.id}
             className="grid gap-2 sm:grid-cols-[1fr_2fr_auto] sm:items-end"

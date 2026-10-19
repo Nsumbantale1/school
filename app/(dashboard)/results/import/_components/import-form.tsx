@@ -6,6 +6,7 @@ import {
   getImportTemplateData,
   importResultsFromCsv,
   importOfficialSofaWorkbook,
+  importExcelIntoIntake,
 } from "../actions";
 import {
   downloadExcel,
@@ -15,7 +16,8 @@ import {
 } from "@/lib/utils/spreadsheet";
 import { downloadCsv } from "@/lib/utils/csv";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -60,10 +62,13 @@ export function ImportResultsForm({
   const [fileName, setFileName] = React.useState<string>("");
   const [csvText, setCsvText] = React.useState("");
   const [updateExisting, setUpdateExisting] = React.useState(true);
+  const [changeReason, setChangeReason] = React.useState("");
   const [loadingTemplate, setLoadingTemplate] = React.useState(false);
   const [importing, setImporting] = React.useState(false);
   const [importingOfficial, setImportingOfficial] = React.useState(false);
   const [officialFiles, setOfficialFiles] = React.useState<File[]>([]);
+  const [intakeFile, setIntakeFile] = React.useState<File | null>(null);
+  const [importingIntake, setImportingIntake] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const [errors, setErrors] = React.useState<string[]>([]);
 
@@ -193,6 +198,7 @@ export function ImportResultsForm({
       formData.set("intakeId", intakeId);
       formData.set("csvText", csvText);
       formData.set("updateExisting", updateExisting ? "true" : "false");
+      formData.set("changeReason", changeReason);
 
       const result = await importResultsFromCsv(formData);
       if (!result.success) {
@@ -248,48 +254,61 @@ export function ImportResultsForm({
   const showIntakeSelect = intakes.length > 1 || !intakeId;
   const titlePrefix = courseLabel ? `${courseLabel} — ` : "";
 
+  const intakeLabel = intakes.find((i) => String(i.intakeId) === intakeId)?.label;
+
+  const handleIntakeImport = async () => {
+    if (!intakeId) {
+      setMessage("Intake haijulikani.");
+      return;
+    }
+    if (!intakeFile) {
+      setMessage("Chagua faili la Excel kwanza.");
+      return;
+    }
+    setImportingIntake(true);
+    setMessage(null);
+    setErrors([]);
+    try {
+      const formData = new FormData();
+      formData.set("file", intakeFile);
+      formData.set("intakeId", intakeId);
+      formData.set("updateExisting", updateExisting ? "true" : "false");
+      formData.set("changeReason", changeReason);
+      const result = await importExcelIntoIntake(formData);
+      if (!result.success) {
+        setMessage(result.error || "Import failed.");
+        setErrors("errors" in result && result.errors ? result.errors : []);
+        return;
+      }
+      setMessage(result.message || "Import complete.");
+      setErrors("errors" in result && result.errors ? result.errors : []);
+      setIntakeFile(null);
+      router.refresh();
+    } finally {
+      setImportingIntake(false);
+    }
+  };
+
   if (embedded) {
     return (
       <div className="space-y-2">
         <Card>
-          <CardContent className="space-y-3 pt-4 pb-4">
-            {canImportOfficial && (
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  id="sofa-workbook"
-                  type="file"
-                  multiple
-                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  onChange={(e) =>
-                    setOfficialFiles(Array.from(e.target.files ?? []))
-                  }
-                  className="max-w-full text-xs file:mr-2 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-primary-foreground"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleOfficialImport}
-                  disabled={officialFiles.length === 0 || importingOfficial}
-                >
-                  {importingOfficial ? (
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Upload className="mr-1.5 h-3.5 w-3.5" />
-                  )}
-                  Official Excel
-                </Button>
-                {officialFiles.length > 0 && (
-                  <span className="text-xs text-muted-foreground truncate max-w-[14rem]">
-                    {officialFiles.map((f) => f.name).join(", ")}
-                  </span>
-                )}
-              </div>
-            )}
-
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileSpreadsheet className="h-4 w-4" />
+              Import Excel into this intake
+            </CardTitle>
+            <CardDescription>
+              Weka Excel ya kozi hapa, kisha bofya Import. Wanafunzi na alama
+              zitaingia kwenye intake hii
+              {intakeLabel ? ` (${intakeLabel})` : ""}, si intake nyingine.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
             {intakes.length === 0 ? (
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs text-muted-foreground">
-                  Hakuna intake — tengeneza kwanza au pakia Official Excel.
+                <p className="text-sm text-muted-foreground">
+                  Hakuna intake — tengeneza kwanza.
                 </p>
                 {newIntakeHref && (
                   <Button asChild size="sm" variant="outline">
@@ -301,75 +320,68 @@ export function ImportResultsForm({
                 )}
               </div>
             ) : (
-              <div className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  {showIntakeSelect ? (
-                    <Select value={intakeId} onValueChange={setIntakeId}>
-                      <SelectTrigger className="h-8 w-[min(100%,16rem)] text-xs">
-                        <SelectValue placeholder="Intake" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {intakes.map((i) => (
-                          <SelectItem key={i.intakeId} value={String(i.intakeId)}>
-                            {i.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    intakes[0] && (
-                      <span className="text-xs text-muted-foreground">
-                        {intakes[0].label}
-                      </span>
-                    )
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="intake-excel">Excel file</Label>
+                  <Input
+                    id="intake-excel"
+                    type="file"
+                    accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                    onChange={(e) => {
+                      setIntakeFile(e.target.files?.[0] ?? null);
+                      setMessage(null);
+                      setErrors([]);
+                    }}
+                  />
+                  {intakeFile && (
+                    <p className="text-sm text-muted-foreground">
+                      Selected: {intakeFile.name}
+                    </p>
                   )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
-                    size="sm"
+                    onClick={handleIntakeImport}
+                    disabled={!intakeFile || importingIntake}
+                  >
+                    {importingIntake ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="mr-2 h-4 w-4" />
+                    )}
+                    Import into this intake
+                  </Button>
+                  <Button
+                    type="button"
                     variant="outline"
                     onClick={handleDownloadExcel}
                     disabled={!intakeId || loadingTemplate}
                   >
                     {loadingTemplate ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
-                      <Download className="mr-1.5 h-3.5 w-3.5" />
+                      <Download className="mr-2 h-4 w-4" />
                     )}
-                    Template
-                  </Button>
-                  <input
-                    id="spreadsheet-file-embedded"
-                    type="file"
-                    accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                    onChange={onFileChange}
-                    className="max-w-[12rem] text-xs file:mr-2 file:rounded-md file:border-0 file:bg-muted file:px-2.5 file:py-1.5 file:text-xs file:font-medium"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleImport}
-                    disabled={!intakeId || !csvText || importing}
-                  >
-                    {importing ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Upload className="mr-1.5 h-3.5 w-3.5" />
-                    )}
-                    Import
+                    Excel template
                   </Button>
                 </div>
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
                   <input
                     type="checkbox"
                     checked={updateExisting}
                     onChange={(e) => setUpdateExisting(e.target.checked)}
                   />
-                  Update existing marks
-                  {fileName ? (
-                    <span className="text-foreground truncate">· {fileName}</span>
-                  ) : null}
+                  Ask approval to change existing marks
                 </label>
-              </div>
+                {updateExisting && (
+                  <Input
+                    value={changeReason}
+                    onChange={(e) => setChangeReason(e.target.value)}
+                    placeholder="Reason if existing marks change (goes to CI → Commandant)"
+                  />
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -551,8 +563,22 @@ export function ImportResultsForm({
                 checked={updateExisting}
                 onChange={(e) => setUpdateExisting(e.target.checked)}
               />
-              Update marks if subject result already exists
+              Ask approval to change marks that are already recorded
             </label>
+            {updateExisting && (
+              <div className="space-y-1">
+                <Input
+                  value={changeReason}
+                  onChange={(e) => setChangeReason(e.target.value)}
+                  placeholder="Reason if existing marks change"
+                  className="max-w-lg"
+                />
+                <p className="text-xs text-muted-foreground">
+                  New marks are saved at once. Marks that are already recorded are only changed
+                  after the Chief Instructor and then the Commandant approve.
+                </p>
+              </div>
+            )}
 
             <Button
               type="button"

@@ -25,9 +25,14 @@ export interface IntakeListItem {
 
 export function CourseIntakesList({
   intakes,
+  intakeBase = "/intakes",
+  openLabel = "Open intake",
 }: {
   courseId: number;
   intakes: IntakeListItem[];
+  /** Path before the intake id, for example `/weekly`. */
+  intakeBase?: string;
+  openLabel?: string;
 }) {
   if (intakes.length === 0) {
     return (
@@ -52,7 +57,7 @@ export function CourseIntakesList({
         return (
           <li key={intake.intakeId} className="min-w-0">
             <Link
-              href={`/intakes/${intake.intakeId}`}
+              href={`${intakeBase}/${intake.intakeId}`}
               prefetch
               className={cn(
                 "group relative flex h-full flex-col overflow-hidden rounded-2xl border border-[#ddd6c6]",
@@ -134,7 +139,7 @@ export function CourseIntakesList({
                 </div>
 
                 <p className="mt-auto pt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#1a5c2e] opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:text-[#7dcea0]">
-                  Open intake
+                  {openLabel}
                 </p>
               </div>
             </Link>

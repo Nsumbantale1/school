@@ -158,7 +158,7 @@ export function FinalCourseReport({
             <div className="sm:col-span-2">
               <dt className="text-muted-foreground">Full name</dt>
               <dd className="font-medium tracking-wide">
-                {displayName(fullName)}
+                {displayName(fullName, courseCode, courseName)}
               </dd>
             </div>
             <div>

@@ -14,9 +14,10 @@ import { getSessionUser } from "@/lib/auth";
 import { assertCanAccessCourse } from "@/lib/auth/permissions";
 import { PageHeader } from "@/components/page-header";
 import { BackButton } from "@/components/back-button";
-import { formatDatePeriod } from "@/lib/utils/format-date";
+import { formatDateOnly, formatDatePeriod } from "@/lib/utils/format-date";
 import { formatIntakeLabel } from "@/lib/utils/intake-label";
 import { getCourseDisplayMeta } from "@/lib/utils/course-catalog";
+import { displayName } from "@/lib/utils/display-name";
 import {
   progressCellKey,
   progressColumns,
@@ -29,6 +30,7 @@ import {
 } from "@/lib/utils/training-week";
 import { ensureProgressTestsTable } from "@/lib/db/ensure-progress-tests";
 import { ProgressChart } from "../_components/progress-chart";
+import { ProgressImport } from "../_components/progress-import";
 
 export default async function WeeklyIntakePage({
   params,
@@ -84,6 +86,7 @@ export default async function WeeklyIntakePage({
         armyNumber: students.armyNumber,
         rank: enrollments.rankAtEnrollment,
         fullName: students.fullName,
+        unit: enrollments.unitAtEnrollment,
       })
       .from(enrollments)
       .innerJoin(students, eq(enrollments.studentArmyNumber, students.armyNumber))
@@ -105,7 +108,11 @@ export default async function WeeklyIntakePage({
       .where(eq(enrollments.intakeId, intakeId)),
   ]);
 
-  roster.sort((a, b) => {
+  const namedRoster = roster.map((student) => ({
+    ...student,
+    fullName: displayName(student.fullName, intake.courseCode, intake.courseName),
+  }));
+  namedRoster.sort((a, b) => {
     const byRank = rankSeniority(b.rank) - rankSeniority(a.rank);
     if (byRank !== 0) return byRank;
     return a.fullName.localeCompare(b.fullName);
@@ -121,18 +128,50 @@ export default async function WeeklyIntakePage({
 
   return (
     <div className="space-y-6">
+      <div className="print:hidden">
       <PageHeader
         title={`${meta.label} · ${intakeLabel}`}
         description={`${intake.courseName} · progress chart · ${formatDatePeriod(intake.startDate, intake.endDate)}`}
       >
         <BackButton fallbackHref="/weekly" />
       </PageHeader>
+      </div>
+      {canEdit && (
+        <ProgressImport
+          intakeId={intake.intakeId}
+          filename={`${meta.label} ${intakeLabel} progress`}
+          rows={[
+            [
+              "S/NO",
+              "ARMY NO",
+              "RANK",
+              "FULL NAME",
+              "UNIT",
+              ...columns.map((column) => column.label),
+            ],
+            ...namedRoster.map((student, index) => [
+              index + 1,
+              student.armyNumber,
+              student.rank,
+              student.fullName,
+              student.unit ?? "",
+              ...columns.map(
+                (column) =>
+                  initialMarks[
+                    progressCellKey(student.enrollmentId, column.kind, column.period)
+                  ] ?? ""
+              ),
+            ]),
+          ]}
+        />
+      )}
       <ProgressChart
         intakeId={intake.intakeId}
-        title={`Progress chart for ${meta.label} intake ${intakeLabel}`}
-        periodLabel={formatDatePeriod(intake.startDate, intake.endDate)}
+        title={`${meta.label} ${intakeLabel}`}
+        fromLabel={formatDateOnly(intake.startDate, "medium")}
+        toLabel={formatDateOnly(intake.endDate, "medium")}
         columns={columns}
-        students={roster}
+        students={namedRoster}
         initialMarks={initialMarks}
         canEdit={canEdit}
         currentWeek={status.phase === "current" ? status.week : 0}

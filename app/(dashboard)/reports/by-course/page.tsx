@@ -148,7 +148,11 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
 
   const exportData = reportData.map((r) => ({
     ...r,
-    fullName: displayName(r.fullName),
+    fullName: displayName(
+      r.fullName,
+      selectedIntake?.courseCode,
+      selectedIntake?.courseName
+    ),
     averageMarks: r.averageMarks
       ? parseFloat(r.averageMarks).toFixed(1)
       : "N/A",
@@ -253,6 +257,11 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
               columns={exportColumns}
               filename={`report-${selectedIntake.courseCode}-${selectedIntake.intakeNumber}`}
               title={`${selectedIntake.courseName} - ${selectedIntake.intakeNumber} (${selectedIntake.year})`}
+              excelHref={
+                params.intakeId
+                  ? `/api/intakes/${params.intakeId}/excel`
+                  : undefined
+              }
             />
           </CardHeader>
           <CardContent>
@@ -305,7 +314,11 @@ export default async function ByCourseReportPage({ searchParams }: PageProps) {
                             href={studentPath(row.armyNumber)}
                             className="hover:underline tracking-wide"
                           >
-                            {displayName(row.fullName)}
+                            {displayName(
+                              row.fullName,
+                              selectedIntake?.courseCode,
+                              selectedIntake?.courseName
+                            )}
                           </Link>
                         </td>
                         <td className="py-3 px-4 whitespace-nowrap">

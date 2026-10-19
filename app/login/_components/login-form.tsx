@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Loader2, Lock, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,9 +62,13 @@ export function LoginForm() {
         )}
       </Button>
 
-      <p className="text-center text-sm text-muted-foreground">
-        Forgot your password?{" "}
-        <span className="font-medium text-foreground">Contact the system administrator.</span>
+      <p className="text-center text-sm">
+        <Link
+          href="/forgot-password"
+          className="font-medium text-primary underline-offset-2 hover:underline"
+        >
+          Forgot password?
+        </Link>
       </p>
     </form>
   );

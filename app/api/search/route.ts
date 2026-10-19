@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { students, courses, courseIntakes } from "@/lib/db/schema";
-import { ilike, or, eq, and, sql } from "drizzle-orm";
+import { students, courses, courseIntakes, enrollments } from "@/lib/db/schema";
+import { ilike, or, eq, and, sql, inArray } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { studentPath } from "@/lib/utils";
+import { displayName, nameOrderForCourses } from "@/lib/utils/display-name";
 
 interface SearchResult {
   type: "student" | "course" | "intake";
@@ -59,6 +60,33 @@ export async function GET(request: NextRequest) {
       )
       .limit(5);
 
+    const armyNumbers = matchingStudents.map((student) => student.armyNumber);
+    const courseRows =
+      armyNumbers.length === 0
+        ? []
+        : await db
+            .select({
+              armyNumber: enrollments.studentArmyNumber,
+              courseCode: courses.courseCode,
+              courseName: courses.courseName,
+            })
+            .from(enrollments)
+            .innerJoin(
+              courseIntakes,
+              eq(enrollments.intakeId, courseIntakes.intakeId)
+            )
+            .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
+            .where(inArray(enrollments.studentArmyNumber, armyNumbers));
+    const coursesByStudent = new Map<
+      string,
+      { courseCode: string; courseName: string }[]
+    >();
+    for (const row of courseRows) {
+      const list = coursesByStudent.get(row.armyNumber) ?? [];
+      list.push({ courseCode: row.courseCode, courseName: row.courseName });
+      coursesByStudent.set(row.armyNumber, list);
+    }
+
     for (const student of matchingStudents) {
       const details = [
         `Current: ${student.rank}`,
@@ -69,7 +97,10 @@ export async function GET(request: NextRequest) {
       results.push({
         type: "student",
         id: student.armyNumber,
-        title: student.fullName,
+        title: displayName(
+          student.fullName,
+          nameOrderForCourses(coursesByStudent.get(student.armyNumber) ?? [])
+        ),
         subtitle: details.join(" · "),
         url: studentPath(student.armyNumber),
       });

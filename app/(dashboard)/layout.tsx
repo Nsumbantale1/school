@@ -9,6 +9,8 @@ import { getLastBackupDate } from "@/lib/utils/backup-tracker";
 import { getUnreadNotifications } from "@/lib/utils/notify";
 import { listCertificateAlarms } from "@/lib/utils/certificate-requests";
 import { CertificateApprovalAlarm } from "@/components/certificate-approval-alarm";
+import { listResultChangeAlarms } from "@/lib/utils/result-changes";
+import { ResultChangeAlarm } from "@/components/result-change-alarm";
 import { LogoutButton } from "@/components/logout-button";
 import { HeaderBreadcrumb } from "@/components/header-breadcrumb";
 
@@ -20,7 +22,7 @@ export default async function DashboardLayout({
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const [lastBackupAt, unread, alarms] = await Promise.all([
+  const [lastBackupAt, unread, alarms, resultChangeAlarms] = await Promise.all([
     user.role === "admin"
       ? getLastBackupDate().catch(() => null)
       : Promise.resolve(null),
@@ -30,6 +32,10 @@ export default async function DashboardLayout({
     }),
     listCertificateAlarms(user.role).catch((error) => {
       console.warn("Certificate alarms unavailable:", error);
+      return [];
+    }),
+    listResultChangeAlarms(user).catch((error) => {
+      console.warn("Result change alarms unavailable:", error);
       return [];
     }),
   ]);
@@ -65,6 +71,7 @@ export default async function DashboardLayout({
               lastBackupAt={lastBackupAt?.toISOString() ?? null}
             />
           )}
+          <ResultChangeAlarm role={user.role} alarms={resultChangeAlarms} />
           <CertificateApprovalAlarm alarms={alarms} />
           {children}
         </main>

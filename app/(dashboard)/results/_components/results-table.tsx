@@ -14,9 +14,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { X } from "lucide-react";
+import { Clock, Pencil, X } from "lucide-react";
+import Link from "next/link";
+import { RequestResultChangeDialog } from "./request-result-change-dialog";
 
-interface ResultRow {
+export interface ResultRow {
   resultId: number;
   studentArmyNumber: string;
   fullName: string;
@@ -29,11 +31,13 @@ interface ResultRow {
   maxMarks: string;
   grade: string | null;
   enteredByName: string | null;
+  canRequestChange: boolean;
+  pendingChange: { id: number; requestNumber: string } | null;
 }
 
 const ALL = "__all__";
 
-const columns: Column<ResultRow>[] = [
+const baseColumns: Column<ResultRow>[] = [
   {
     key: "studentArmyNumber",
     header: "Army No.",
@@ -46,7 +50,7 @@ const columns: Column<ResultRow>[] = [
     header: "Student",
     cell: (row) => (
       <span className="tracking-wide">
-        {row.rank} {displayName(row.fullName)}
+        {row.rank} {displayName(row.fullName, row.courseCode)}
       </span>
     ),
     sortable: true,
@@ -109,6 +113,41 @@ function subjectPercent(row: ResultRow): number {
 }
 
 export function ResultsTable({ data }: { data: ResultRow[] }) {
+  const [changeTarget, setChangeTarget] = React.useState<ResultRow | null>(null);
+  const showChangeColumn = React.useMemo(
+    () => data.some((row) => row.canRequestChange || row.pendingChange),
+    [data],
+  );
+  const columns = React.useMemo<Column<ResultRow>[]>(() => {
+    if (!showChangeColumn) return baseColumns;
+    return [
+      ...baseColumns,
+      {
+        key: "change",
+        header: "Change",
+        cell: (row) =>
+          row.pendingChange ? (
+            <Link
+              href={`/results/changes/${row.pendingChange.id}`}
+              className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900 hover:underline dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+            >
+              <Clock className="h-3 w-3" />
+              {row.pendingChange.requestNumber}
+            </Link>
+          ) : row.canRequestChange ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setChangeTarget(row)}
+            >
+              <Pencil className="mr-1 h-3 w-3" />
+              Request change
+            </Button>
+          ) : null,
+      },
+    ];
+  }, [showChangeColumn]);
   const [course, setCourse] = React.useState(ALL);
   const [unit, setUnit] = React.useState(ALL);
   const [grade, setGrade] = React.useState(ALL);
@@ -244,6 +283,13 @@ export function ResultsTable({ data }: { data: ResultRow[] }) {
         ]}
         searchPlaceholder="Search name, army number, unit, course, or subject..."
         getRowKey={(row) => row.resultId}
+      />
+
+      <RequestResultChangeDialog
+        result={changeTarget}
+        onOpenChange={(open) => {
+          if (!open) setChangeTarget(null);
+        }}
       />
     </div>
   );

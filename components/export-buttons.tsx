@@ -15,6 +15,8 @@ interface ExportButtonsProps {
   filename: string;
   title?: string;
   subtitle?: string;
+  /** Full-course workbook: every student and every subject mark. */
+  excelHref?: string;
 }
 
 export function ExportButtons({
@@ -23,6 +25,7 @@ export function ExportButtons({
   filename,
   title,
   subtitle,
+  excelHref,
 }: ExportButtonsProps) {
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingWord, setExportingWord] = useState(false);
@@ -128,6 +131,14 @@ export function ExportButtons({
         )}
         Export CSV
       </Button>
+      {excelHref && (
+        <Button variant="outline" size="sm" asChild>
+          <a href={excelHref}>
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Download Excel
+          </a>
+        </Button>
+      )}
     </div>
   );
 }

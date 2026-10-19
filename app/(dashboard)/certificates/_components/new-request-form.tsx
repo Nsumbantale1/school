@@ -20,6 +20,7 @@ import {
   createCertificateRequest,
   getEligibleStudentsAction,
 } from "../actions";
+import { displayName } from "@/lib/utils/display-name";
 
 type IntakeOption = {
   value: string;
@@ -220,7 +221,13 @@ export function NewCertificateRequestForm({
                         {s.armyNumber}
                       </td>
                       <td className="px-3 py-2">{s.rank}</td>
-                      <td className="px-3 py-2 font-medium">{s.fullName}</td>
+                      <td className="px-3 py-2 font-medium">
+                        {displayName(
+                          s.fullName,
+                          intakes.find((item) => item.value === intakeId)?.courseCode,
+                          intakes.find((item) => item.value === intakeId)?.courseName
+                        )}
+                      </td>
                       <td className="px-3 py-2">{s.grade ?? "—"}</td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {s.unit ?? "—"}

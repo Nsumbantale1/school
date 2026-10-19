@@ -47,16 +47,18 @@ function FolderCard({
   course,
   label,
   family,
+  href,
 }: {
   course: CourseFolderRow;
   label: string;
   family: CourseFamily;
+  href: string;
 }) {
   const intakes = Number(course.intakeCount) || 0;
 
   return (
     <Link
-      href={`/courses/${course.courseId}`}
+      href={href}
       prefetch
       className="group relative flex h-full min-h-0 flex-col outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-b-lg"
     >
@@ -127,7 +129,14 @@ function FolderCard({
   );
 }
 
-export function CoursesFolderGrid({ data }: { data: CourseFolderRow[] }) {
+export function CoursesFolderGrid({
+  data,
+  folderBase = "/courses",
+}: {
+  data: CourseFolderRow[];
+  /** Path before the course id, for example `/weekly/course`. */
+  folderBase?: string;
+}) {
   const [query, setQuery] = useState("");
 
   const sorted = useMemo(() => sortCoursesByCatalog(data), [data]);
@@ -176,6 +185,7 @@ export function CoursesFolderGrid({ data }: { data: CourseFolderRow[] }) {
               course={course}
               label={course.display.label}
               family={course.display.family}
+              href={`${folderBase}/${course.courseId}`}
             />
           ))}
         </div>

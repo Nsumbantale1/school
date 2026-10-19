@@ -58,7 +58,11 @@ export function IntakeForm({ courses, initialData, defaultCourseId }: IntakeForm
 
     if (result.success) {
       toast.success(isEditing ? "Intake updated." : "Intake created.");
-      router.push("/intakes");
+      router.push(
+        !isEditing && "intakeId" in result && result.intakeId
+          ? `/intakes/${result.intakeId}#add-students`
+          : "/intakes"
+      );
     } else {
       toast.error(result.error ?? "An error occurred.");
     }
@@ -107,7 +111,7 @@ export function IntakeForm({ courses, initialData, defaultCourseId }: IntakeForm
             id="year"
             name="year"
             type="number"
-            min="2000"
+            min="1960"
             max="2100"
             required
             defaultValue={initialData?.year ?? currentYear}

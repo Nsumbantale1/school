@@ -17,6 +17,7 @@ import { Plus } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { canManageStudents } from "@/lib/auth/guards";
 import { getStudentPhotoPathMap } from "@/lib/utils/student-photo";
+import { nameOrderForCourses } from "@/lib/utils/display-name";
 
 export default async function StudentsPage() {
   const [user, data, enrollmentRows, photoMap] = await Promise.all([
@@ -79,10 +80,21 @@ export default async function StudentsPage() {
     }
   }
 
+  const coursesByStudent = new Map<
+    string,
+    { courseCode: string; courseName: string }[]
+  >();
+  for (const row of enrollmentRows) {
+    const list = coursesByStudent.get(row.studentArmyNumber) ?? [];
+    list.push({ courseCode: row.courseCode, courseName: row.courseName });
+    coursesByStudent.set(row.studentArmyNumber, list);
+  }
+
   const tableData = data.map((s) => ({
     ...s,
     photoPath: photoMap.get(s.armyNumber) ?? null,
     enrollments: enrollmentsByStudent.get(s.armyNumber) ?? [],
+    nameOrder: nameOrderForCourses(coursesByStudent.get(s.armyNumber) ?? []),
   }));
   const courseList = Array.from(courseMap.values()).sort((a, b) =>
     a.courseName.localeCompare(b.courseName),

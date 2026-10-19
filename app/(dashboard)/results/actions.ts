@@ -4,14 +4,20 @@ import { db } from "@/lib/db";
 import { results, enrollments, courseIntakes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireRole, requireAuth, canManageResultsForCourse } from "@/lib/auth/guards";
+import { requireAuth, canManageResultsForCourse } from "@/lib/auth/guards";
 import { calculateGrade } from "@/lib/utils/grades";
 import {
   recalculateEnrollmentMarks,
   recalculatePositions,
   getIntakeIdForEnrollment,
 } from "@/lib/utils/positions";
-import { auditCreate, auditUpdate, auditDelete, getChangedFields } from "@/lib/utils/audit";
+import { auditCreate } from "@/lib/utils/audit";
+import {
+  createResultChangeRequest,
+  marksDiffer,
+  openChangesForResults,
+  type NewResultChangeItem,
+} from "@/lib/utils/result-changes";
 
 export async function createResult(formData: FormData) {
   const user = await requireAuth();
@@ -92,125 +98,102 @@ export async function createResult(formData: FormData) {
   }
 }
 
-export async function updateResult(resultId: number, formData: FormData) {
+/**
+ * Recorded marks are never changed directly: this files a request that the
+ * Chief Instructor and then the Commandant must approve.
+ */
+export async function requestResultChange(input: {
+  resultId: number;
+  action: "update" | "delete";
+  marksObtained?: number;
+  maxMarks?: number;
+  reason: string;
+}): Promise<
+  { success: true; requestId: number; requestNumber: string } | { success: false; error: string }
+> {
   const user = await requireAuth();
-
   if (user.role !== "admin" && user.role !== "instructor") {
-    return { success: false, error: "Unauthorized: insufficient permissions" };
+    return { success: false, error: "Only admins and instructors can ask to change results." };
   }
 
-  // Get existing result
+  const reason = input.reason?.trim() ?? "";
+  if (reason.length < 5) {
+    return { success: false, error: "Explain why the marks must change (at least 5 characters)." };
+  }
+
   const [existing] = await db
-    .select()
+    .select({
+      result: results,
+      intakeId: enrollments.intakeId,
+      courseId: courseIntakes.courseId,
+    })
     .from(results)
-    .where(eq(results.resultId, resultId))
+    .innerJoin(enrollments, eq(results.enrollmentId, enrollments.enrollmentId))
+    .innerJoin(courseIntakes, eq(enrollments.intakeId, courseIntakes.intakeId))
+    .where(eq(results.resultId, input.resultId))
     .limit(1);
+  if (!existing) return { success: false, error: "Result not found." };
 
-  if (!existing) {
-    return { success: false, error: "Result not found." };
+  if (!canManageResultsForCourse(user, existing.courseId)) {
+    return { success: false, error: "You can only manage results for your assigned course." };
   }
 
-  // For instructors, verify course access
-  if (user.role === "instructor") {
-    const [enrollment] = await db
-      .select({ courseId: courseIntakes.courseId })
-      .from(enrollments)
-      .innerJoin(courseIntakes, eq(enrollments.intakeId, courseIntakes.intakeId))
-      .where(eq(enrollments.enrollmentId, existing.enrollmentId))
-      .limit(1);
-
-    if (!enrollment || !canManageResultsForCourse(user, enrollment.courseId)) {
-      return { success: false, error: "You can only manage results for your assigned course." };
-    }
+  const pending = (await openChangesForResults([input.resultId])).get(input.resultId);
+  if (pending) {
+    return {
+      success: false,
+      error: `A change to this mark is already waiting for approval (${pending.requestNumber}).`,
+    };
   }
 
-  const marksObtained = parseFloat(formData.get("marksObtained") as string);
-  const maxMarks = parseFloat(formData.get("maxMarks") as string) || 100;
-  const remarks = (formData.get("remarks") as string) || null;
-
-  // Auto-calculate grade
-  const grade = calculateGrade(marksObtained, maxMarks);
-
-  const newData = {
-    marksObtained: marksObtained.toString(),
-    maxMarks: maxMarks.toString(),
-    grade,
-    remarks,
-    updatedAt: new Date(),
+  const current = existing.result;
+  const base = {
+    enrollmentId: current.enrollmentId,
+    resultId: current.resultId,
+    subjectName: current.subjectName,
+    oldMarks: current.marksObtained,
+    oldMaxMarks: current.maxMarks,
+    oldGrade: current.grade,
   };
 
-  try {
-    await db
-      .update(results)
-      .set(newData)
-      .where(eq(results.resultId, resultId));
-
-    // Recalculate enrollment totals
-    await recalculateEnrollmentMarks(existing.enrollmentId);
-
-    // Recalculate positions
-    const intakeId = await getIntakeIdForEnrollment(existing.enrollmentId);
-    if (intakeId) {
-      await recalculatePositions(intakeId);
+  let item: NewResultChangeItem;
+  if (input.action === "delete") {
+    item = { kind: "delete_result", ...base };
+  } else {
+    const marks = Number(input.marksObtained);
+    const max = Number(input.maxMarks) || Number(current.maxMarks) || 100;
+    if (!Number.isFinite(marks) || marks < 0 || marks > max) {
+      return { success: false, error: `Marks must be between 0 and ${max}.` };
     }
-
-    const changes = getChangedFields(
-      {
-        marksObtained: existing.marksObtained,
-        maxMarks: existing.maxMarks,
-        grade: existing.grade,
-      },
-      { marksObtained: marksObtained.toString(), maxMarks: maxMarks.toString(), grade }
-    );
-    await auditUpdate(user, "results", String(resultId), changes.old, changes.new);
-
-    revalidatePath("/results");
-    revalidatePath(`/enrollments/${existing.enrollmentId}`);
-    if (intakeId) revalidatePath(`/intakes/${intakeId}`);
-
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: (error as Error).message };
+    if (!marksDiffer(current, { marksObtained: marks, maxMarks: max })) {
+      return { success: false, error: "The new marks are the same as the recorded marks." };
+    }
+    item = { kind: "update_result", ...base, newMarks: marks, newMaxMarks: max };
   }
+
+  const created = await createResultChangeRequest({
+    user,
+    intakeId: existing.intakeId,
+    source: "manual",
+    reason,
+    items: [item],
+  });
+
+  revalidatePath("/results");
+  revalidatePath("/results/changes");
+  return { success: true, requestId: created.id, requestNumber: created.requestNumber };
 }
 
-export async function deleteResult(resultId: number) {
-  const user = await requireRole(["admin"]);
+export async function updateResult(resultId: number, formData: FormData) {
+  return requestResultChange({
+    resultId,
+    action: "update",
+    marksObtained: parseFloat(formData.get("marksObtained") as string),
+    maxMarks: parseFloat(formData.get("maxMarks") as string),
+    reason: String(formData.get("reason") ?? ""),
+  });
+}
 
-  const [existing] = await db
-    .select()
-    .from(results)
-    .where(eq(results.resultId, resultId))
-    .limit(1);
-
-  if (!existing) {
-    return { success: false, error: "Result not found." };
-  }
-
-  try {
-    await db.delete(results).where(eq(results.resultId, resultId));
-
-    // Recalculate enrollment totals
-    await recalculateEnrollmentMarks(existing.enrollmentId);
-
-    // Recalculate positions
-    const intakeId = await getIntakeIdForEnrollment(existing.enrollmentId);
-    if (intakeId) {
-      await recalculatePositions(intakeId);
-    }
-
-    await auditDelete(user, "results", String(resultId), {
-      enrollmentId: existing.enrollmentId,
-      subjectName: existing.subjectName,
-      marksObtained: existing.marksObtained,
-    });
-
-    revalidatePath("/results");
-    revalidatePath(`/enrollments/${existing.enrollmentId}`);
-    if (intakeId) revalidatePath(`/intakes/${intakeId}`);
-
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: (error as Error).message };
-  }
+export async function deleteResult(resultId: number, reason = "") {
+  return requestResultChange({ resultId, action: "delete", reason });
 }

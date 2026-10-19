@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { db } from "@/lib/db";
-import { students } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { students, enrollments, courseIntakes, courses } from "@/lib/db/schema";
+import { eq, inArray } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Search } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { studentPath } from "@/lib/utils";
+import { displayName, nameOrderForCourses } from "@/lib/utils/display-name";
 
 interface PageProps {
   searchParams: Promise<{ q?: string }>;
@@ -42,12 +43,45 @@ export default async function ByStudentReportPage({ searchParams }: PageProps) {
 
     // Filter by query (case-insensitive)
     const lowerQuery = query.toLowerCase();
-    searchResults = allStudents.filter(
+    const matched = allStudents.filter(
       (s) =>
         s.armyNumber.toLowerCase().includes(lowerQuery) ||
         s.fullName.toLowerCase().includes(lowerQuery) ||
         s.rank.toLowerCase().includes(lowerQuery)
     );
+    const armyNumbers = matched.map((student) => student.armyNumber);
+    const courseRows =
+      armyNumbers.length === 0
+        ? []
+        : await db
+            .select({
+              armyNumber: enrollments.studentArmyNumber,
+              courseCode: courses.courseCode,
+              courseName: courses.courseName,
+            })
+            .from(enrollments)
+            .innerJoin(
+              courseIntakes,
+              eq(enrollments.intakeId, courseIntakes.intakeId)
+            )
+            .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
+            .where(inArray(enrollments.studentArmyNumber, armyNumbers));
+    const coursesByStudent = new Map<
+      string,
+      { courseCode: string; courseName: string }[]
+    >();
+    for (const row of courseRows) {
+      const list = coursesByStudent.get(row.armyNumber) ?? [];
+      list.push(row);
+      coursesByStudent.set(row.armyNumber, list);
+    }
+    searchResults = matched.map((student) => ({
+      ...student,
+      fullName: displayName(
+        student.fullName,
+        nameOrderForCourses(coursesByStudent.get(student.armyNumber) ?? [])
+      ),
+    }));
   }
 
   return (

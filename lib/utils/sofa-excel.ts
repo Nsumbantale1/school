@@ -1009,7 +1009,8 @@ export function parseSofaWorkbook(
 /** Parse official report sheets and/or MATOKEO roster sheets (may yield multiple intakes). */
 export function parseSofaWorkbookAll(
   input: Buffer | Uint8Array | string,
-  filename: string
+  filename: string,
+  fallback?: { courseCode: string; courseName: string; intakeNumber: string }
 ): ParsedSofaWorkbook[] {
   const workbook =
     typeof input === "string"
@@ -1038,7 +1039,12 @@ export function parseSofaWorkbookAll(
     const sheetCatalog =
       catalogFromText(students[0].courseRaw) ??
       catalogFromText(students.map((s) => s.courseRaw).join(" "));
-    const catalog = sheetCatalog ?? fileCatalog;
+    const catalog =
+      sheetCatalog ??
+      fileCatalog ??
+      (fallback
+        ? { code: fallback.courseCode, name: fallback.courseName }
+        : null);
     if (!catalog) {
       throw new Error(`${filename}: could not detect course (KOZI / filename).`);
     }
@@ -1049,7 +1055,9 @@ export function parseSofaWorkbookAll(
     const intakeNumber = withBattery(
       intakeFromStudents ||
         intakeFromFilename(filename) ||
-        intakeFromDates(students[0].startDate, students[0].endDate),
+        intakeFromDates(students[0].startDate, students[0].endDate) ||
+        fallback?.intakeNumber ||
+        "",
       filename
     );
 

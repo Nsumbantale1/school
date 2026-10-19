@@ -16,3 +16,5 @@ export * from "./notifications";
 export * from "./presentations";
 export * from "./audit-logs";
 export * from "./login-logs";
+export * from "./result-changes";
+export * from "./password-resets";

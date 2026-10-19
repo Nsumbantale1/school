@@ -19,7 +19,14 @@ import {
 import { calculateGrade } from "@/lib/utils/grades";
 import { recalculatePositions } from "@/lib/utils/positions";
 import { parseCsv } from "@/lib/utils/csv";
+import { displayName } from "@/lib/utils/display-name";
 import { auditCreate } from "@/lib/utils/audit";
+import {
+  createResultChangeRequest,
+  marksDiffer,
+  openChangesForResults,
+  type NewResultChangeItem,
+} from "@/lib/utils/result-changes";
 
 const META_HEADERS = new Set([
   "army number",
@@ -118,6 +125,7 @@ export async function importResultsFromCsv(formData: FormData) {
   const intakeId = parseInt(String(formData.get("intakeId") || ""), 10);
   const csvText = String(formData.get("csvText") || "");
   const updateExisting = formData.get("updateExisting") !== "false";
+  const changeReason = String(formData.get("changeReason") || "").trim();
 
   if (!intakeId || Number.isNaN(intakeId)) {
     return { success: false, error: "Please select an intake." };
@@ -378,8 +386,9 @@ export async function importResultsFromCsv(formData: FormData) {
   }
 
   let created = 0;
-  let updated = 0;
+  let unchanged = 0;
   const touchedEnrollments = new Set<number>();
+  const changeItems: NewResultChangeItem[] = [];
 
   const enrollmentIds = [...new Set(pending.map((p) => p.enrollmentId))];
   const existingRows =
@@ -389,6 +398,9 @@ export async function importResultsFromCsv(formData: FormData) {
             resultId: results.resultId,
             enrollmentId: results.enrollmentId,
             subjectName: results.subjectName,
+            marksObtained: results.marksObtained,
+            maxMarks: results.maxMarks,
+            grade: results.grade,
           })
           .from(results)
           .where(inArray(results.enrollmentId, enrollmentIds))
@@ -400,6 +412,7 @@ export async function importResultsFromCsv(formData: FormData) {
       r,
     ])
   );
+  const openChanges = await openChangesForResults(existingRows.map((r) => r.resultId));
 
   for (const item of pending) {
     const grade = calculateGrade(item.marksObtained, item.maxMarks);
@@ -407,24 +420,34 @@ export async function importResultsFromCsv(formData: FormData) {
     const existing = existingByKey.get(key);
 
     if (existing) {
+      if (existing.resultId < 0 || !marksDiffer(existing, item)) {
+        unchanged++;
+        continue;
+      }
       if (!updateExisting) {
         errors.push(
-          `${item.armyNumber} / ${item.subjectName}: already exists (skipped).`
+          `${item.armyNumber} / ${item.subjectName}: already recorded with different marks (skipped).`
         );
         continue;
       }
-      await db
-        .update(results)
-        .set({
-          subjectName: item.subjectName,
-          marksObtained: item.marksObtained.toString(),
-          maxMarks: item.maxMarks.toString(),
-          grade,
-          enteredBy: user.userId,
-          updatedAt: new Date(),
-        })
-        .where(eq(results.resultId, existing.resultId));
-      updated++;
+      const openRequest = openChanges.get(existing.resultId);
+      if (openRequest) {
+        errors.push(
+          `${item.armyNumber} / ${item.subjectName}: a change is already waiting for approval (${openRequest.requestNumber}).`
+        );
+        continue;
+      }
+      changeItems.push({
+        kind: "update_result",
+        enrollmentId: existing.enrollmentId,
+        resultId: existing.resultId,
+        subjectName: existing.subjectName,
+        oldMarks: existing.marksObtained,
+        oldMaxMarks: existing.maxMarks,
+        oldGrade: existing.grade,
+        newMarks: item.marksObtained,
+        newMaxMarks: item.maxMarks,
+      });
     } else {
       await db.insert(results).values({
         enrollmentId: item.enrollmentId,
@@ -439,38 +462,67 @@ export async function importResultsFromCsv(formData: FormData) {
         resultId: -1,
         enrollmentId: item.enrollmentId,
         subjectName: item.subjectName,
+        marksObtained: item.marksObtained.toString(),
+        maxMarks: item.maxMarks.toString(),
+        grade,
       });
+      touchedEnrollments.add(item.enrollmentId);
     }
+  }
 
-    touchedEnrollments.add(item.enrollmentId);
+  let changeRequest: { id: number; requestNumber: string; items: number } | null = null;
+  if (changeItems.length > 0) {
+    const request = await createResultChangeRequest({
+      user,
+      intakeId,
+      source: "import",
+      reason: changeReason || "Corrected marks re-imported from file.",
+      items: changeItems,
+    });
+    changeRequest = { ...request, items: changeItems.length };
   }
 
   // Recalculate averages, grades, status (CT if <55%), and positions
-  await recalculatePositions(intakeId);
+  if (created > 0) await recalculatePositions(intakeId);
 
   await auditCreate(user, "results", `import-intake-${intakeId}`, {
     intakeId,
     created,
-    updated,
+    changesRequested: changeItems.length,
+    changeRequest: changeRequest?.requestNumber ?? null,
+    unchanged,
     skippedEmpty,
     errorCount: errors.length,
   });
 
   revalidatePath("/results");
+  revalidatePath("/results/changes");
   revalidatePath(`/intakes/${intakeId}`);
   revalidatePath(`/courses/${intake.courseId}`);
   for (const enrollmentId of touchedEnrollments) {
     revalidatePath(`/enrollments/${enrollmentId}`);
   }
 
+  const parts = [`${created} new mark(s) saved.`];
+  if (unchanged > 0) parts.push(`${unchanged} already recorded with the same marks.`);
+  if (changeRequest) {
+    parts.push(
+      `${changeRequest.items} change(s) to existing marks sent for approval as ${changeRequest.requestNumber} (Chief Instructor, then Commandant).`
+    );
+  }
+  if (created > 0) parts.push("Averages, grades and positions updated.");
+
   return {
     success: true,
     created,
-    updated,
+    updated: 0,
+    changesRequested: changeItems.length,
+    changeRequestId: changeRequest?.id ?? null,
+    changeRequestNumber: changeRequest?.requestNumber ?? null,
     skippedEmpty,
     errors: errors.slice(0, 50),
     errorCount: errors.length,
-    message: `Imported ${created + updated} mark(s): ${created} new, ${updated} updated. Averages, grades and positions updated.`,
+    message: parts.join(" "),
   };
 }
 
@@ -518,6 +570,11 @@ export async function getImportTemplateData(intakeId: number) {
     .where(eq(enrollments.intakeId, intakeId))
     .orderBy(asc(students.fullName));
 
+  const namedRoster = roster.map((student) => ({
+    ...student,
+    fullName: displayName(student.fullName, intake.courseCode, intake.courseName),
+  }));
+
   return {
     success: true as const,
     intake,
@@ -525,7 +582,7 @@ export async function getImportTemplateData(intakeId: number) {
       subjectName: s.subjectName,
       maxMarks: String(s.maxMarks ?? "100"),
     })),
-    roster,
+    roster: namedRoster,
   };
 }
 
@@ -553,7 +610,20 @@ export async function importOfficialSofaWorkbook(formData: FormData) {
   try {
     const { importSofaWorkbookFromBuffer } = await import("@/lib/utils/sofa-import");
     const buffer = Buffer.from(await file.arrayBuffer());
-    const summary = await importSofaWorkbookFromBuffer(buffer, file.name, user.userId);
+    const rawIntake = parseInt(String(formData.get("intakeId") || ""), 10);
+    const targetIntakeId =
+      Number.isFinite(rawIntake) && rawIntake > 0 ? rawIntake : undefined;
+    if (targetIntakeId) {
+      const access = await assertCanImportIntake(targetIntakeId);
+      if (!access.ok) {
+        return { success: false as const, error: access.error };
+      }
+    }
+
+    const summary = await importSofaWorkbookFromBuffer(buffer, file.name, user.userId, {
+      protectRecordedMarks: true,
+      targetIntakeId,
+    });
 
     await auditCreate(user, "results", `sofa-import-${summary.intakeId}`, {
       filename: summary.filename,
@@ -574,7 +644,9 @@ export async function importOfficialSofaWorkbook(formData: FormData) {
     return {
       success: true as const,
       ...summary,
-      message: `Imported ${summary.courseCode} intake ${summary.intakeNumber}: ${summary.students} students, ${summary.results} results.`,
+      message: targetIntakeId
+        ? `Imported into this intake: ${summary.students} students, ${summary.results} marks.`
+        : `Imported ${summary.courseCode} intake ${summary.intakeNumber}: ${summary.students} students, ${summary.results} results.`,
     };
   } catch (error) {
     return {
@@ -582,4 +654,56 @@ export async function importOfficialSofaWorkbook(formData: FormData) {
       error: (error as Error).message || "Failed to import workbook.",
     };
   }
+}
+
+/** One submit on an intake page: official course Excel, or a marks sheet, into that intake. */
+export async function importExcelIntoIntake(formData: FormData) {
+  const intakeId = parseInt(String(formData.get("intakeId") || ""), 10);
+  const file = formData.get("file");
+  if (!intakeId || Number.isNaN(intakeId)) {
+    return { success: false as const, error: "Intake haijulikani." };
+  }
+  if (!(file instanceof File) || file.size === 0) {
+    return { success: false as const, error: "Chagua faili la Excel kwanza." };
+  }
+
+  const access = await assertCanImportIntake(intakeId);
+  if (!access.ok) {
+    return { success: false as const, error: access.error };
+  }
+
+  const name = file.name.toLowerCase();
+  const isExcel = name.endsWith(".xlsx") || name.endsWith(".xls");
+
+  if (isExcel && access.user.role === "admin") {
+    const official = new FormData();
+    official.set("file", file);
+    official.set("intakeId", String(intakeId));
+    const result = await importOfficialSofaWorkbook(official);
+    if (result.success) return result;
+    const reason = result.error || "";
+    if (!/no student report sheets or MATOKEO roster/i.test(reason)) {
+      return result;
+    }
+  }
+
+  const XLSX = await import("xlsx");
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const workbook = XLSX.read(buffer, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const csvText = sheet ? XLSX.utils.sheet_to_csv(sheet) : "";
+  const marks = new FormData();
+  marks.set("intakeId", String(intakeId));
+  marks.set("csvText", csvText);
+  marks.set("updateExisting", String(formData.get("updateExisting") ?? "true"));
+  marks.set("changeReason", String(formData.get("changeReason") ?? ""));
+  const marksResult = await importResultsFromCsv(marks);
+  if (!marksResult.success && /Army Number/i.test(marksResult.error || "")) {
+    return {
+      success: false as const,
+      error:
+        "Excel hii haikuingia. Weka Excel ya kozi (wanafunzi na alama) kisha bofya Import into this intake.",
+    };
+  }
+  return marksResult;
 }
