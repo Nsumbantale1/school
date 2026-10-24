@@ -16,10 +16,13 @@ import {
   canManageEnrollments,
   canManageCourses,
   canManageResults,
+  canCoordinateCourse,
 } from "@/lib/auth/guards";
 import { getCourseDisplayMeta } from "@/lib/utils/course-catalog";
 import { formatIntakeLabel } from "@/lib/utils/intake-label";
+import { intakeRecordClosed } from "@/lib/utils/training-week";
 import { CourseIntakesList } from "./_components/course-intakes-list";
+import { CoordinatorDesk } from "@/app/(dashboard)/weekly/_components/coordinator-desk";
 import { ImportResultsForm } from "@/app/(dashboard)/results/import/_components/import-form";
 
 const courseDisplay = Barlow_Condensed({
@@ -44,6 +47,7 @@ export default async function CourseDetailPage({
     !!user &&
     canManageResults(user.role) &&
     (user.role === "admin" || user.assignedCourseId === courseId);
+  const canCoordinate = !!user && canCoordinateCourse(user, courseId);
 
   const [course, intakes] = await Promise.all([
     db.query.courses.findFirst({
@@ -92,8 +96,9 @@ export default async function CourseDetailPage({
     ...i,
     studentCount: Number(i.studentCount) || 0,
   }));
-  const defaultIntake =
-    intakeRows.find((i) => i.isActive) ?? intakeRows[0] ?? null;
+  const runningIntakes = intakeRows.filter((intake) => !intakeRecordClosed(intake.endDate));
+  const finishedIntakes = intakeRows.filter((intake) => intakeRecordClosed(intake.endDate));
+  const defaultIntake = runningIntakes[0] ?? intakeRows.find((i) => i.isActive) ?? intakeRows[0] ?? null;
 
   const importIntakes = intakeRows.map((i) => ({
     intakeId: i.intakeId,
@@ -176,11 +181,26 @@ export default async function CourseDetailPage({
         </Card>
       </div>
 
+      {canCoordinate && (
+        <CoordinatorDesk
+          courseId={courseId}
+          intakes={runningIntakes.map((intake) => ({
+            intakeId: intake.intakeId,
+            label: formatIntakeLabel({
+              intakeNumber: intake.intakeNumber,
+              startDate: intake.startDate,
+              endDate: intake.endDate,
+              year: intake.year,
+            }),
+          }))}
+        />
+      )}
+
       <section className="space-y-4">
         <div className="flex items-end justify-between border-b border-[#ddd6c6] pb-2 dark:border-border">
           <div>
             <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5c6b5c] dark:text-muted-foreground">
-              Course intakes
+              Intakes still running
             </h2>
             <p className="mt-1 text-[11px] text-muted-foreground">
               Labels use <span className="font-medium text-foreground">14/25</span>{" "}
@@ -193,8 +213,19 @@ export default async function CourseDetailPage({
             Tap a card to open
           </span>
         </div>
-        <CourseIntakesList courseId={courseId} intakes={intakeRows} />
+        <CourseIntakesList courseId={courseId} intakes={runningIntakes} />
       </section>
+
+      {finishedIntakes.length > 0 && (
+        <details className="rounded-2xl border border-[#ddd6c6] px-4 py-3 dark:border-border">
+          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.18em] text-[#5c6b5c] dark:text-muted-foreground">
+            Finished intakes ({finishedIntakes.length}) — results and certificates kept
+          </summary>
+          <div className="pt-4">
+            <CourseIntakesList courseId={courseId} intakes={finishedIntakes} />
+          </div>
+        </details>
+      )}
 
       {canImport && (
         <section className="space-y-2">

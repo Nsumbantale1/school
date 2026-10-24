@@ -43,17 +43,17 @@ export function ProgressImport({
       <CardHeader>
         <CardTitle className="text-base">Add this month's results</CardTitle>
         <CardDescription>
-          The course coordinator uploads an Excel file for the weeks just tested.
-          Marks already on the chart stay. A blank cell does not remove an earlier week.
+          The course coordinator uploads an Excel or PDF file for the weeks just tested.
+          A blank cell does not remove an earlier week. A mark that is already saved is not replaced unless the Chief Instructor has given authority.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="flex-1 space-y-1 text-sm">
-            <span className="font-medium">Excel file</span>
+            <span className="font-medium">Excel or PDF</span>
             <input
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.pdf,application/pdf"
               className="block w-full text-sm file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5"
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />

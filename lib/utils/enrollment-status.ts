@@ -6,7 +6,7 @@ export const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
   in_progress: "In progress",
   completed: "Completed",
   failed: "Failed",
-  incomplete: "CT — Ceased training",
+  incomplete: "CT",
   indiscipline: "CT — Indiscipline",
   withdrawn: "Withdrawn",
 };

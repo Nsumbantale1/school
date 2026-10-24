@@ -5,10 +5,14 @@ import { Barlow_Condensed } from "next/font/google";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
 import { courseIntakes, courses, enrollments } from "@/lib/db/schema";
+import { getSessionUser } from "@/lib/auth";
+import { canCoordinateCourse } from "@/lib/auth/permissions";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { getCourseDisplayMeta } from "@/lib/utils/course-catalog";
+import { formatIntakeLabel } from "@/lib/utils/intake-label";
 import { CourseIntakesList } from "@/app/(dashboard)/courses/[course_id]/_components/course-intakes-list";
+import { CoordinatorDesk } from "../../_components/coordinator-desk";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +70,8 @@ export default async function WeeklyCoursePage({
 
   if (!course || !course.isActive) notFound();
 
+  const user = await getSessionUser();
+  const canCoordinate = !!user && canCoordinateCourse(user, courseId);
   const display = getCourseDisplayMeta(course.courseCode, course.courseName);
   const intakeRows = intakes.map((intake) => ({
     ...intake,
@@ -76,7 +82,7 @@ export default async function WeeklyCoursePage({
     <div className={`space-y-6 ${courseDisplay.variable}`}>
       <PageHeader
         title={display.label}
-        description={`${course.courseName} · choose an intake to open its weekly and monthly test chart`}
+        description={`${course.courseName} · ${intakeRows.length} intake${intakeRows.length === 1 ? "" : "s"} in this course`}
       >
         <Button variant="outline" asChild>
           <Link href="/weekly">
@@ -85,6 +91,20 @@ export default async function WeeklyCoursePage({
           </Link>
         </Button>
       </PageHeader>
+      {canCoordinate && (
+        <CoordinatorDesk
+          courseId={courseId}
+          intakes={intakeRows.map((intake) => ({
+            intakeId: intake.intakeId,
+            label: formatIntakeLabel({
+              intakeNumber: intake.intakeNumber,
+              startDate: intake.startDate,
+              endDate: intake.endDate,
+              year: intake.year,
+            }),
+          }))}
+        />
+      )}
       <section className="space-y-4">
         <div className="flex items-end justify-between border-b border-[#ddd6c6] pb-2 dark:border-border">
           <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5c6b5c] dark:text-muted-foreground">

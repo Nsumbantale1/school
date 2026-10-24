@@ -4,14 +4,17 @@ import { db } from "@/lib/db";
 import { courseIntakes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/auth/guards";
+import { canCoordinateCourse, requireAuth, requireRole } from "@/lib/auth/guards";
 import { auditCreate, auditUpdate, auditDelete, getChangedFields } from "@/lib/utils/audit";
 import { countEnrollmentsWithMarks } from "@/lib/utils/result-changes";
 
 export async function createIntake(formData: FormData) {
-  const user = await requireRole(["admin"]);
+  const user = await requireAuth();
 
   const courseId = parseInt(formData.get("courseId") as string);
+  if (!Number.isInteger(courseId) || !canCoordinateCourse(user, courseId)) {
+    return { success: false, error: "You can only create an intake for your course." };
+  }
   const intakeNumber = formData.get("intakeNumber") as string;
   const year = parseInt(formData.get("year") as string);
   if (!Number.isInteger(year) || year < 1960 || year > 2100) {
@@ -47,7 +50,9 @@ export async function createIntake(formData: FormData) {
     });
 
     revalidatePath("/intakes");
+    revalidatePath("/weekly");
     revalidatePath(`/courses/${courseId}`);
+    revalidatePath(`/weekly/course/${courseId}`);
     return { success: true, intakeId: newIntake.intakeId };
   } catch (error) {
     const message = (error as Error).message;

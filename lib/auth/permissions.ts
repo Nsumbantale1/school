@@ -67,6 +67,11 @@ export function canManageResultsForCourse(
   return false;
 }
 
+/** Admin, or the instructor assigned to this course, runs the intake and weekly tests. */
+export function canCoordinateCourse(user: SessionUser, courseId: number): boolean {
+  return canManageResultsForCourse(user, courseId);
+}
+
 /** Instructor may only touch their assigned course; admin unrestricted. */
 export function assertCanAccessCourse(
   user: SessionUser,

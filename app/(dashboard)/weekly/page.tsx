@@ -40,14 +40,11 @@ export default async function WeeklyPage() {
     <div className={`space-y-8 ${courseDisplay.variable}`}>
       <PageHeader
         title="Weekly & Monthly Test"
-        description="Open a course folder to view its intakes"
+        description="Open a course. Its own intakes are listed inside."
       >
         <BackButton fallbackHref="/dashboard" />
       </PageHeader>
-      <CoursesFolderGrid
-        data={folders}
-        folderBase="/weekly/course"
-      />
+      <CoursesFolderGrid data={folders} folderBase="/weekly/course" />
     </div>
   );
 }

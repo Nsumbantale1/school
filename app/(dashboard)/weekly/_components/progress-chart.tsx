@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import {
   type ProgressColumn,
   type ProgressKind,
 } from "@/lib/utils/progress-chart";
+import { examFailed, studentStanding } from "@/lib/utils/progress-standing";
 import { saveProgressMark } from "../actions";
 
 export type ChartStudent = {
@@ -26,7 +28,7 @@ const STICKY = [
   { key: "sno", label: "S/NO", width: 36 },
   { key: "army", label: "ARMY NO", width: 88 },
   { key: "rank", label: "RANK", width: 52 },
-  { key: "name", label: "FULL NAME", width: 168 },
+  { key: "name", label: "FULL NAME", width: 196 },
   { key: "unit", label: "UNIT", width: 88 },
 ] as const;
 
@@ -50,6 +52,8 @@ export function ProgressChart({
   students,
   initialMarks,
   canEdit,
+  canRevise,
+  passMark,
   currentWeek,
   currentMonth,
 }: {
@@ -61,9 +65,13 @@ export function ProgressChart({
   students: ChartStudent[];
   initialMarks: Record<string, string>;
   canEdit: boolean;
+  /** False once marks are saved, until the Chief Instructor authorizes a correction. */
+  canRevise: boolean;
+  passMark: number;
   currentWeek: number;
   currentMonth: number;
 }) {
+  const router = useRouter();
   const [marks, setMarks] = useState(initialMarks);
   const [saved, setSaved] = useState(initialMarks);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -161,6 +169,7 @@ export function ProgressChart({
     const stored = next === "" ? "" : Number(next).toFixed(1);
     setMarks((prev) => ({ ...prev, [key]: stored }));
     setSaved((prev) => ({ ...prev, [key]: stored }));
+    router.refresh();
   }
 
   const leftOf = (index: number) =>
@@ -173,7 +182,11 @@ export function ProgressChart({
       <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
         <p className="text-xs text-muted-foreground">
           Weeks run 1, 2, 3, then M-1, and the same after every three weeks.
-          {canEdit ? " Click a cell to enter a mark out of 100." : " View only."}
+          {canEdit
+            ? canRevise
+              ? " Click a cell to enter or correct a mark out of 100."
+              : " Empty cells can still be filled. A mark that is already saved stays locked until the Chief Instructor gives authority."
+            : " View only."}
         </p>
         <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
           <Printer className="mr-2 h-4 w-4" />
@@ -306,7 +319,13 @@ export function ProgressChart({
                       className="sticky z-10 border border-black bg-white px-1 py-0.5 font-medium"
                       style={{ left: leftOf(3), minWidth: STICKY[3].width }}
                     >
-                      {student.fullName}
+                      <span className="inline-flex items-center gap-1">
+                        <span>{student.fullName}</span>
+                        {studentStanding(columns, marks, student.enrollmentId, passMark).standing ===
+                          "ct" && (
+                          <span className="font-bold text-red-700">CT</span>
+                        )}
+                      </span>
                     </td>
                     <td
                       className="sticky z-10 border border-black bg-white px-1 py-0.5"
@@ -316,6 +335,12 @@ export function ProgressChart({
                     </td>
                     {columns.map((column) => {
                       const key = progressCellKey(student.enrollmentId, column.kind, column.period);
+                      const recorded = (saved[key] ?? "") !== "";
+                      const locked = recorded && !canRevise;
+                      const raw = marks[key] ?? "";
+                      const value = Number(raw);
+                      const failed =
+                        raw.trim() !== "" && Number.isFinite(value) && examFailed(value, passMark);
                       const current =
                         (column.kind === "week" && column.period === currentWeek) ||
                         (column.kind === "month" && column.period === currentMonth);
@@ -330,14 +355,18 @@ export function ProgressChart({
                         >
                           <input
                             value={marks[key] ?? ""}
-                            disabled={!canEdit || savingKey === key}
+                            disabled={!canEdit || locked || savingKey === key}
+                            readOnly={locked}
                             inputMode="decimal"
                             aria-label={`${student.fullName} ${column.label}`}
                             onChange={(event) =>
                               setMarks((prev) => ({ ...prev, [key]: event.target.value }))
                             }
                             onBlur={(event) => void commit(student, column, event.target.value)}
-                            className="h-7 w-full bg-transparent px-0.5 text-center text-[11px] tabular-nums text-black outline-none focus:bg-white focus:ring-1 focus:ring-inset focus:ring-black disabled:opacity-100"
+                            className={cn(
+                              "h-7 w-full bg-transparent px-0.5 text-center text-[11px] tabular-nums outline-none focus:bg-white focus:ring-1 focus:ring-inset focus:ring-black disabled:opacity-100",
+                              failed ? "font-semibold text-red-700" : "text-black"
+                            )}
                           />
                         </td>
                       );

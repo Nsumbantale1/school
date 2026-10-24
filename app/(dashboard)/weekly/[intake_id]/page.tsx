@@ -29,8 +29,17 @@ import {
   trainingWeekStatus,
 } from "@/lib/utils/training-week";
 import { ensureProgressTestsTable } from "@/lib/db/ensure-progress-tests";
+import {
+  openProgressAuthority,
+  pendingProgressAuthority,
+} from "@/lib/utils/progress-authority";
 import { ProgressChart } from "../_components/progress-chart";
 import { ProgressImport } from "../_components/progress-import";
+import { EditAuthority } from "../_components/edit-authority";
+import { CourseAnalysis } from "../_components/course-analysis";
+import { columnAverages, studentStanding } from "@/lib/utils/progress-standing";
+import { DEFAULT_PASSING_MARK } from "@/lib/utils/passing-mark";
+import { syncProgressStandings } from "@/lib/utils/sync-progress-standing";
 
 export default async function WeeklyIntakePage({
   params,
@@ -52,6 +61,7 @@ export default async function WeeklyIntakePage({
       courseCode: courses.courseCode,
       courseName: courses.courseName,
       durationWeeks: courses.durationWeeks,
+      passingMark: courses.passingMark,
     })
     .from(courseIntakes)
     .innerJoin(courses, eq(courseIntakes.courseId, courses.courseId))
@@ -126,6 +136,35 @@ export default async function WeeklyIntakePage({
     ] = Number(mark.marks).toFixed(1);
   }
 
+  const passMark = intake.passingMark || DEFAULT_PASSING_MARK;
+  const hasMarks = marks.length > 0;
+  const standings = namedRoster.map((student) => ({
+    ...student,
+    ...studentStanding(columns, initialMarks, student.enrollmentId, passMark),
+  }));
+  const trend = columnAverages(
+    columns,
+    initialMarks,
+    namedRoster.map((student) => student.enrollmentId),
+    passMark
+  );
+  const grant =
+    user?.role === "instructor" ? await openProgressAuthority(intake.intakeId, user.userId) : null;
+  const waiting =
+    user?.role === "instructor"
+      ? await pendingProgressAuthority(intake.intakeId, user.userId)
+      : null;
+  const canRevise = user?.role === "admin" || !!grant || !hasMarks;
+  const authorityMode = grant ? "granted" : waiting ? "pending" : "ask";
+
+  if (hasMarks) {
+    await syncProgressStandings({
+      enrollmentIds: namedRoster.map((student) => student.enrollmentId),
+      passingMark: passMark,
+      durationWeeks: intake.durationWeeks,
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div className="print:hidden">
@@ -136,6 +175,9 @@ export default async function WeeklyIntakePage({
         <BackButton fallbackHref="/weekly" />
       </PageHeader>
       </div>
+      {canEdit && user?.role === "instructor" && hasMarks && (
+        <EditAuthority intakeId={intake.intakeId} mode={authorityMode} />
+      )}
       {canEdit && (
         <ProgressImport
           intakeId={intake.intakeId}
@@ -174,12 +216,24 @@ export default async function WeeklyIntakePage({
         students={namedRoster}
         initialMarks={initialMarks}
         canEdit={canEdit}
+        canRevise={canRevise}
+        passMark={passMark}
         currentWeek={status.phase === "current" ? status.week : 0}
         currentMonth={
           status.phase === "current"
             ? currentTrainingMonth(status.week, monthCount, status.phase)
             : 0
         }
+      />
+      <CourseAnalysis
+        passMark={passMark}
+        trend={trend}
+        danger={standings
+          .filter((student) => student.standing === "danger")
+          .map((student) => ({ name: student.fullName, armyNumber: student.armyNumber }))}
+        ceased={standings
+          .filter((student) => student.standing === "ct")
+          .map((student) => ({ name: student.fullName, armyNumber: student.armyNumber }))}
       />
     </div>
   );

@@ -37,6 +37,21 @@ export function trainingWeekStatus(opts: {
   return { phase: "current", week, totalWeeks };
 }
 
+/**
+ * Closed only when an end date was recorded and that date has passed.
+ * A blank end date stays open so the coordinator can still enter weekly tests.
+ */
+export function intakeRecordClosed(
+  endDate: string | Date | null | undefined,
+  today: Date = new Date()
+): boolean {
+  const end = parseDateOnly(endDate);
+  if (!end) return false;
+  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const endUtc = Date.UTC(end.year, end.month - 1, end.day);
+  return todayUtc > endUtc;
+}
+
 /** A monthly test follows every three weekly tests: weeks 1–3, then M-1. */
 export function trainingMonths(durationWeeks: number): number {
   return Math.floor(Math.max(0, durationWeeks) / 3);

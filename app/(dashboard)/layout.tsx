@@ -11,6 +11,8 @@ import { listCertificateAlarms } from "@/lib/utils/certificate-requests";
 import { CertificateApprovalAlarm } from "@/components/certificate-approval-alarm";
 import { listResultChangeAlarms } from "@/lib/utils/result-changes";
 import { ResultChangeAlarm } from "@/components/result-change-alarm";
+import { listPendingProgressAuthorities } from "@/lib/utils/progress-authority";
+import { ProgressAuthorityAlarm } from "@/components/progress-authority-alarm";
 import { LogoutButton } from "@/components/logout-button";
 import { HeaderBreadcrumb } from "@/components/header-breadcrumb";
 
@@ -22,7 +24,7 @@ export default async function DashboardLayout({
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const [lastBackupAt, unread, alarms, resultChangeAlarms] = await Promise.all([
+  const [lastBackupAt, unread, alarms, resultChangeAlarms, progressAuthorityCount] = await Promise.all([
     user.role === "admin"
       ? getLastBackupDate().catch(() => null)
       : Promise.resolve(null),
@@ -38,6 +40,14 @@ export default async function DashboardLayout({
       console.warn("Result change alarms unavailable:", error);
       return [];
     }),
+    user.role === "chief_instructor"
+      ? listPendingProgressAuthorities()
+          .then((rows) => rows.length)
+          .catch((error) => {
+            console.warn("Weekly authority unavailable:", error);
+            return 0;
+          })
+      : Promise.resolve(0),
   ]);
   const unreadCount = unread.length;
   const unreadItems = unread.slice(0, 8);
@@ -72,6 +82,7 @@ export default async function DashboardLayout({
             />
           )}
           <ResultChangeAlarm role={user.role} alarms={resultChangeAlarms} />
+          <ProgressAuthorityAlarm count={progressAuthorityCount} />
           <CertificateApprovalAlarm alarms={alarms} />
           {children}
         </main>

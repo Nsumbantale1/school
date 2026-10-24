@@ -367,6 +367,12 @@ async function pdfGrids(bytes: Uint8Array): Promise<Grid[]> {
   return [grid];
 }
 
+/** One table-like grid of text rows from a PDF. Scanned pages come back empty. */
+export async function extractPdfGrid(bytes: Uint8Array): Promise<string[][]> {
+  const [grid] = await pdfGrids(bytes);
+  return grid ?? [];
+}
+
 export async function parseRosterFile(fileName: string, bytes: Uint8Array): Promise<ParsedRoster> {
   const name = fileName.toLowerCase();
   let source: ParsedRoster["source"];
