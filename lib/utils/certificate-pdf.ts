@@ -215,50 +215,43 @@ async function removeCrestDiagonals(pdf: PDFDocument) {
 }
 
 /**
- * Word split every side bar into two strokes that do not share an x, and the
- * top and bottom bars do not meet those strokes. Each colour becomes one
- * rectangle: the verticals are straight, the same length, and they stop on
- * the horizontal bars so the corners are square.
+ * Word drew each coloured side as separate strokes. The ends do not meet, so
+ * every corner has a white notch and the next colour steps across it.
+ * These are the original path operators, removed before the frames are redrawn.
  */
-const FRAME_FIXES: Array<[string, string]> = [
-  // Askari blue
-  ["54.75 760.6 m\r\n54.75 45.95 l\r\nS", "54.75 738.55 m\r\n54.75 55 l\r\nS"],
-  ["556.75 762.85 m\r\n556.8 52.2 l\r\nS", "556.75 738.55 m\r\n556.75 55 l\r\nS"],
-  ["43.25 738.55 m\r\n570.75 738.55 l\r\nS", "54.75 738.55 m\r\n556.75 738.55 l\r\nS"],
-  ["43.8 55 m\r\n571.75 55 l\r\nS", "54.75 55 m\r\n556.75 55 l\r\nS"],
-  // Askari red. The second piece of each side is the stepped overlap.
-  ["565.75 339.25 m\r\n565.8 760.65 l\r\nS", "565.75 748.65 m\r\n565.75 46.1 l\r\nS"],
-  ["44.8 344.25 m\r\n44.8 759.6 l\r\nS", "44.8 748.65 m\r\n44.8 46.1 l\r\nS"],
-  ["44.8 36.15 m\r\n44.8 438.35 l\r\nS", ""],
-  ["566.75 32.05 m\r\n566.8 462.3 l\r\nS", ""],
-  ["41.8 748.65 m\r\n572.75 748.6 l\r\nS", "44.8 748.65 m\r\n565.75 748.65 l\r\nS"],
-  ["39.8 46.1 m\r\n570.75 46.05 l\r\nS", "44.8 46.1 m\r\n565.75 46.1 l\r\nS"],
-  // Askari green
-  ["34.8 760.6 m\r\n34.85 31 l\r\nS", "34.8 758.6 m\r\n34.8 36.15 l\r\nS"],
-  ["575.85 763.6 m\r\n575.9 34 l\r\nS", "575.85 758.6 m\r\n575.85 36.15 l\r\nS"],
-  ["29.85 758.6 m\r\n575.9 758.6 l\r\nS", "34.8 758.6 m\r\n575.85 758.6 l\r\nS"],
-  ["29.85 36.15 m\r\n580.9 36.1 l\r\nS", "34.8 36.15 m\r\n575.85 36.15 l\r\nS"],
-  // Afisa blue
-  ["54.75 755.25 m\r\n54.75 40.6 l\r\nS", "54.75 733.2 m\r\n54.75 48.55 l\r\nS"],
-  ["556.75 754.25 m\r\n556.8 43.6 l\r\nS", "556.75 733.2 m\r\n556.75 48.55 l\r\nS"],
-  ["43.25 733.2 m\r\n570.75 733.2 l\r\nS", "54.75 733.2 m\r\n556.75 733.2 l\r\nS"],
-  ["43.8 48.55 m\r\n571.75 48.55 l\r\nS", "54.75 48.55 m\r\n556.75 48.55 l\r\nS"],
-  // Afisa red. The lower right piece is the shifted gold stroke.
-  ["565.75 333.9 m\r\n565.8 755.3 l\r\nS", "565.75 743.3 m\r\n565.75 39.65 l\r\nS"],
-  ["44.8 338.9 m\r\n44.8 754.25 l\r\nS", "44.8 743.3 m\r\n44.8 39.65 l\r\nS"],
-  ["44.8 29.7 m\r\n44.8 431.9 l\r\nS", ""],
-  ["566.75 25.65 m\r\n566.8 455.9 l\r\nS", ""],
-  ["41.8 743.3 m\r\n572.75 743.25 l\r\nS", "44.8 743.3 m\r\n565.75 743.3 l\r\nS"],
-  ["39.8 39.65 m\r\n570.75 39.6 l\r\nS", "44.8 39.65 m\r\n565.75 39.65 l\r\nS"],
-  // Afisa green. The bottom bar used to stop short of the left corner.
-  ["34.8 755.25 m\r\n34.85 25.65 l\r\nS", "34.8 753.25 m\r\n34.8 29.7 l\r\nS"],
-  ["575.85 758.25 m\r\n575.9 28.65 l\r\nS", "575.85 753.25 m\r\n575.85 29.7 l\r\nS"],
-  ["29.85 753.25 m\r\n575.9 753.25 l\r\nS", "34.8 753.25 m\r\n575.85 753.25 l\r\nS"],
-  ["34.75 29.7 m\r\n580.9 29.7 l\r\nS", "34.8 29.7 m\r\n575.85 29.7 l\r\nS"],
+const BROKEN_FRAME_STROKES = [
+  "54.75 760.6 m\r\n54.75 45.95 l\r\nS",
+  "556.75 762.85 m\r\n556.8 52.2 l\r\nS",
+  "43.25 738.55 m\r\n570.75 738.55 l\r\nS",
+  "43.8 55 m\r\n571.75 55 l\r\nS",
+  "565.75 339.25 m\r\n565.8 760.65 l\r\nS",
+  "44.8 344.25 m\r\n44.8 759.6 l\r\nS",
+  "44.8 36.15 m\r\n44.8 438.35 l\r\nS",
+  "566.75 32.05 m\r\n566.8 462.3 l\r\nS",
+  "41.8 748.65 m\r\n572.75 748.6 l\r\nS",
+  "39.8 46.1 m\r\n570.75 46.05 l\r\nS",
+  "34.8 760.6 m\r\n34.85 31 l\r\nS",
+  "575.85 763.6 m\r\n575.9 34 l\r\nS",
+  "29.85 758.6 m\r\n575.9 758.6 l\r\nS",
+  "29.85 36.15 m\r\n580.9 36.1 l\r\nS",
+  "54.75 755.25 m\r\n54.75 40.6 l\r\nS",
+  "556.75 754.25 m\r\n556.8 43.6 l\r\nS",
+  "43.25 733.2 m\r\n570.75 733.2 l\r\nS",
+  "43.8 48.55 m\r\n571.75 48.55 l\r\nS",
+  "565.75 333.9 m\r\n565.8 755.3 l\r\nS",
+  "44.8 338.9 m\r\n44.8 754.25 l\r\nS",
+  "44.8 29.7 m\r\n44.8 431.9 l\r\nS",
+  "566.75 25.65 m\r\n566.8 455.9 l\r\nS",
+  "41.8 743.3 m\r\n572.75 743.25 l\r\nS",
+  "39.8 39.65 m\r\n570.75 39.6 l\r\nS",
+  "34.8 755.25 m\r\n34.85 25.65 l\r\nS",
+  "575.85 758.25 m\r\n575.9 28.65 l\r\nS",
+  "29.85 753.25 m\r\n575.9 753.25 l\r\nS",
+  "34.75 29.7 m\r\n580.9 29.7 l\r\nS",
 ];
 
-/** Square the green, red, and blue side frames on a certificate template. */
-async function straightenSideFrames(pdf: PDFDocument) {
+/** Drop the broken green, red, and blue frame strokes. */
+async function removeBrokenFrames(pdf: PDFDocument) {
   const pdfLib = (await import("pdf-lib")) as unknown as {
     PDFName: { of(name: string): unknown };
     PDFRawStream: abstract new (...args: never[]) => {
@@ -275,9 +268,9 @@ async function straightenSideFrames(pdf: PDFDocument) {
     if (!(obj instanceof pdfLib.PDFRawStream)) continue;
     let text = bytesToLatin1(pdfLib.decodePDFRawStream(obj).decode());
     let changed = false;
-    for (const [from, to] of FRAME_FIXES) {
-      if (!text.includes(from)) continue;
-      text = text.replace(from, to);
+    for (const stroke of BROKEN_FRAME_STROKES) {
+      if (!text.includes(stroke)) continue;
+      text = text.replace(stroke, "");
       changed = true;
     }
     if (!changed) continue;
@@ -285,6 +278,60 @@ async function straightenSideFrames(pdf: PDFDocument) {
     obj.dict.delete(pdfLib.PDFName.of("Filter"));
     obj.dict.delete(pdfLib.PDFName.of("DecodeParms"));
   }
+}
+
+/** Outer edge of the green band, in PDF points. */
+const OUTER_FRAME: Record<CertificateKind, { x: number; y: number; w: number; h: number }> = {
+  askari: { x: 29.8, y: 31.15, w: 551.05, h: 732.45 },
+  afisa: { x: 29.8, y: 24.7, w: 551.05, h: 733.55 },
+};
+
+const FRAME_BAND = 10;
+
+type FrameBox = { x: number; y: number; w: number; h: number };
+
+/** One closed band. The side pieces own the corners, so the joins stay square. */
+function drawFrameBand(page: PDFPage, box: FrameBox, color: RGB) {
+  const t = FRAME_BAND;
+  const seam = 0.35;
+  page.drawRectangle({ x: box.x, y: box.y, width: t, height: box.h, color, borderWidth: 0 });
+  page.drawRectangle({
+    x: box.x + box.w - t,
+    y: box.y,
+    width: t,
+    height: box.h,
+    color,
+    borderWidth: 0,
+  });
+  page.drawRectangle({
+    x: box.x + t - seam,
+    y: box.y + box.h - t,
+    width: box.w - 2 * t + seam * 2,
+    height: t,
+    color,
+    borderWidth: 0,
+  });
+  page.drawRectangle({
+    x: box.x + t - seam,
+    y: box.y,
+    width: box.w - 2 * t + seam * 2,
+    height: t,
+    color,
+    borderWidth: 0,
+  });
+}
+
+function insetFrame(box: FrameBox, by: number): FrameBox {
+  return { x: box.x + by, y: box.y + by, w: box.w - by * 2, h: box.h - by * 2 };
+}
+
+/** Green, red, then blue, each sitting just inside the last with no overlap. */
+async function drawSquareFrames(page: PDFPage, kind: CertificateKind) {
+  const { rgb } = await import("pdf-lib");
+  const outer = OUTER_FRAME[kind];
+  drawFrameBand(page, outer, rgb(0, 0.69, 0.314));
+  drawFrameBand(page, insetFrame(outer, FRAME_BAND), rgb(1, 0, 0));
+  drawFrameBand(page, insetFrame(outer, FRAME_BAND * 2), rgb(0, 0.439, 0.753));
 }
 
 function isSignaturePaper(r: number, g: number, b: number, a: number) {
@@ -399,7 +446,8 @@ export async function fillGraduationCertificate(
   pdf.registerFontkit(fontkitMod.default);
   const font = await pdf.embedFont(fontBytes, { subset: true });
   await removeCrestDiagonals(pdf);
-  await straightenSideFrames(pdf);
+  await removeBrokenFrames(pdf);
+  await drawSquareFrames(pdf.getPages()[0], kind);
 
   const signatures: SignatureImages = {
     chief: await embedStamp(pdf, stamps.chief),
@@ -558,7 +606,8 @@ export async function buildGraduationCertificatesPdf(
   for (const [kind, bytes] of templates) {
     const template = await PDFDocument.load(bytes);
     await removeCrestDiagonals(template);
-    await straightenSideFrames(template);
+    await removeBrokenFrames(template);
+    await drawSquareFrames(template.getPages()[0], kind);
     const [background] = await out.embedPdf(template, [0]);
     backgrounds.set(kind, background);
   }
