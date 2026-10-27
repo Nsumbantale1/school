@@ -196,6 +196,7 @@ export default async function CourseDetailPage({
         />
       )}
 
+      {(runningIntakes.length > 0 || finishedIntakes.length === 0) && (
       <section className="space-y-4">
         <div className="flex items-end justify-between border-b border-[#ddd6c6] pb-2 dark:border-border">
           <div>
@@ -215,16 +216,18 @@ export default async function CourseDetailPage({
         </div>
         <CourseIntakesList courseId={courseId} intakes={runningIntakes} />
       </section>
+      )}
 
       {finishedIntakes.length > 0 && (
-        <details className="rounded-2xl border border-[#ddd6c6] px-4 py-3 dark:border-border">
-          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.18em] text-[#5c6b5c] dark:text-muted-foreground">
-            Finished intakes ({finishedIntakes.length}) — results and certificates kept
-          </summary>
-          <div className="pt-4">
-            <CourseIntakesList courseId={courseId} intakes={finishedIntakes} />
+        <section className="space-y-4">
+          <div className="flex items-end justify-between border-b border-[#ddd6c6] pb-2 dark:border-border">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5c6b5c] dark:text-muted-foreground">
+              Finished intakes ({finishedIntakes.length}) — results and certificates kept
+            </h2>
+            <span className="text-[11px] text-muted-foreground">Tap a card to open</span>
           </div>
-        </details>
+          <CourseIntakesList courseId={courseId} intakes={finishedIntakes} />
+        </section>
       )}
 
       {canImport && (
