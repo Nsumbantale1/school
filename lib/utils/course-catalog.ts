@@ -39,9 +39,9 @@ export const FAMILY_LABELS: Record<CourseFamily, string> = {
  * Exact DB code → display. Unknown codes fall back to heuristics below.
  */
 const EXACT: Record<string, CourseDisplayMeta> = {
-  FAOC: { label: "FAOC", family: "officers", order: 1 },
-  FAOC1: { label: "FAOC", family: "officers", order: 1 },
-  FAOAC: { label: "FAOC", family: "officers", order: 1 },
+  FAOC: { label: "FAOAC", family: "officers", order: 1 },
+  FAOC1: { label: "FAOAC", family: "officers", order: 1 },
+  FAOAC: { label: "FAOAC", family: "officers", order: 1 },
   ROG: { label: "ROGC", family: "officers", order: 2 },
   ROGC: { label: "ROGC", family: "officers", order: 2 },
   RO0G2025: { label: "ROGC", family: "officers", order: 2 },
@@ -125,7 +125,7 @@ export function getCourseDisplayMeta(
   }
 
   if (/\bROG/.test(blob)) return { label: "ROGC", family: "officers", order: 2 };
-  if (/\bFAOC|\bFAOAC/.test(blob)) return { label: "FAOC", family: "officers", order: 1 };
+  if (/\bFAOC|\bFAOAC/.test(blob)) return { label: "FAOAC", family: "officers", order: 1 };
   if (/\bBCC\b/.test(blob)) return { label: "BCC", family: "officers", order: 3 };
   if (/\bOBGC\b/.test(blob)) return { label: "OBGC", family: "observation", order: 1 };
   if (/\bROPOC\b/.test(blob)) return { label: "ROPOC", family: "observation", order: 2 };

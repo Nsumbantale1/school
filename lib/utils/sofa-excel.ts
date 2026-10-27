@@ -76,7 +76,7 @@ const COURSE_CATALOG: Array<{
 }> = [
   {
     match: /\bFAOAC\b|\bFAOC\b/,
-    code: "FAOC",
+    code: "FAOAC",
     name: "Field Artillery Officers Course",
   },
   {
